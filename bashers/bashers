@@ -1,20 +1,67 @@
 #!/usr/bin/env bash
 
+_bashers_find_lib() {
+  local pkg_dir=""
+  pkg_dir="$(
+    python - <<'PY'
+import importlib.resources as resources
+print(resources.files("bashers"))
+PY
+  )"
+  if [[ -n "$pkg_dir" && -f "$pkg_dir/_bashers_lib" ]]; then
+    echo "$pkg_dir/_bashers_lib"
+    return 0
+  fi
+
+  local dir
+  dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  while [[ "$dir" != "/" ]]; do
+    if [[ -f "$dir/_bashers_lib" ]]; then
+      echo "$dir/_bashers_lib"
+      return 0
+    fi
+    dir="$(dirname "$dir")"
+  done
+  return 1
+}
+
+_bashers_lib="$(_bashers_find_lib)"
+[[ -n "$_bashers_lib" ]] && source "$_bashers_lib"
+
 print_help() {
   local pkg_dir="$1"
-  echo "Bashers - Bash command helpers"
-  echo "Usage: bashers <command> [args...]"
+  _bashers_color_init
+  _bashers_print_title "Bashers - Bash command helpers"
   echo ""
-  echo "Available commands:"
+  _bashers_print_usage "bashers <COMMAND> [ARGS]"
+  echo ""
+  _bashers_print_section "Commands"
+  _bashers_print_kv "help" "Display help for bashers or a command"
   if [[ -d "$pkg_dir" ]]; then
-    find "$pkg_dir" -type f \
+    declare -A descriptions=(
+      [setup]="Install project dependencies (uv/poetry)"
+      [show]="List installed packages (uv/poetry)"
+      [update]="Update dependencies (uv/poetry)"
+    )
+    mapfile -t commands < <(find "$pkg_dir" -type f \
       | sed "s|^$pkg_dir/||" \
       | grep -vE '(^__|/__)' \
       | grep -vE '(^\.|/\.)' \
+      | grep -vE '(^_|/_)' \
+      | grep -vE '^bashers$' \
       | grep -vE '\.(py|pyc)$' \
-      | sort \
-      | sed 's/^/  /'
+      | xargs -n1 basename \
+      | sort -u)
+    for cmd in "${commands[@]}"; do
+      if [[ -n "${descriptions[$cmd]-}" ]]; then
+        _bashers_print_kv "$cmd" "${descriptions[$cmd]}"
+      else
+        printf "  %s%s%s\n" "$BASHERS_CYAN" "$cmd" "$BASHERS_RESET"
+      fi
+    done
   fi
+  echo ""
+  echo "Use ${BASHERS_BOLD}bashers <command> --help${BASHERS_RESET} for more details."
 }
 
 if [[ $# -eq 0 ]]; then
@@ -59,6 +106,7 @@ else
   mapfile -t matches < <(find "$pkg_dir" -type f -name "$command" \
     | grep -vE '(^__|/__)' \
     | grep -vE '(^\.|/\.)' \
+    | grep -vE '(^_|/_)' \
     | grep -vE '\.(py|pyc)$')
   if [[ ${#matches[@]} -gt 1 ]]; then
     echo "Command '$command' is ambiguous. Use a path:" >&2
@@ -72,10 +120,13 @@ fi
 
 if [[ -n "$script_path" && -f "$script_path" ]]; then
   script_name="$(basename "$script_path")"
+  _bashers_color_init
   if grep -qE "^[[:space:]]*${script_name}[[:space:]]*\\(\\)[[:space:]]*\\{" "$script_path"; then
-    exec bash -c "source \"$script_path\" && $script_name \"\$@\"" -- "$@"
+    _bashers_run bash -c "source \"$script_path\" && $script_name \"\$@\"" -- "$@"
+    exit $?
   fi
-  exec "$script_path" "$@"
+  _bashers_run "$script_path" "$@"
+  exit $?
 fi
 
 echo "Command '$command' not found. Use 'bashers help' for available commands."

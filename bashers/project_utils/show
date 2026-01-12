@@ -1,15 +1,31 @@
 #!/usr/bin/env bash
 
+_bashers_find_lib() {
+  local dir
+  dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  while [[ "$dir" != "/" ]]; do
+    if [[ -f "$dir/_bashers_lib" ]]; then
+      echo "$dir/_bashers_lib"
+      return 0
+    fi
+    dir="$(dirname "$dir")"
+  done
+  return 1
+}
+
+_bashers_lib="$(_bashers_find_lib)"
+[[ -n "$_bashers_lib" ]] && source "$_bashers_lib"
+
 show() {
   if [[ "${1-}" == "-h" || "${1-}" == "--help" ]]; then
-    cat <<'EOF'
-Usage: show [pattern...]
-
-List installed Python packages for the current project.
-
-With patterns, filters results (case-insensitive).
-Works with uv or poetry projects.
-EOF
+    _bashers_color_init
+    _bashers_print_title "show"
+    _bashers_print_usage "show [pattern...]"
+    _bashers_print_section "Description"
+    _bashers_print_bullet "List installed Python packages for the current project."
+    _bashers_print_section "Notes"
+    _bashers_print_bullet "With patterns, filters results (case-insensitive)."
+    _bashers_print_bullet "Works with uv or poetry projects."
     return 0
   fi
   _need() { command -v "$1" >/dev/null 2>&1 || { echo "[show]: $1 not on PATH" >&2; return 127; }; }

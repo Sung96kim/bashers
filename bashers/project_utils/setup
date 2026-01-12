@@ -1,23 +1,68 @@
 #!/usr/bin/env bash
 
+_bashers_find_lib() {
+  local dir
+  dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  while [[ "$dir" != "/" ]]; do
+    if [[ -f "$dir/_bashers_lib" ]]; then
+      echo "$dir/_bashers_lib"
+      return 0
+    fi
+    dir="$(dirname "$dir")"
+  done
+  return 1
+}
+
+_bashers_lib="$(_bashers_find_lib)"
+[[ -n "$_bashers_lib" ]] && source "$_bashers_lib"
+
 setup() {
-  local arg="${1-}" want_frozen=0 want_no_cache=0
-  if [[ "$arg" == "-h" || "$arg" == "--help" ]]; then
-    cat <<'EOF'
-Usage: setup [--rm] [--frozen|--locked|--sync]
+  local want_frozen=0 want_no_cache=0 dry_run=0 rm_venv=0
 
-Install project dependencies using uv or poetry.
+  for arg in "$@"; do
+    case "$arg" in
+      -h|--help)
+        _bashers_color_init
+        _bashers_print_title "setup"
+        _bashers_print_usage "setup [--rm] [--frozen|--locked|--sync] [--dry-run]"
+        _bashers_print_section "Description"
+        _bashers_print_bullet "Install project dependencies using uv or poetry."
+        _bashers_print_section "Options"
+        _bashers_print_kv "--rm" "Remove .venv before install (implies --no-cache)"
+        _bashers_print_kv "--frozen" "Use a locked/frozen install if supported"
+        _bashers_print_kv "--locked" "Same as --frozen"
+        _bashers_print_kv "--sync" "Same as --frozen"
+        _bashers_print_kv "--dry-run" "Print the commands without executing"
+        return 0
+        ;;
+      --dry-run)
+        dry_run=1
+        ;;
+      --rm)
+        rm_venv=1
+        want_no_cache=1
+        ;;
+      --frozen|--locked|--sync)
+        want_frozen=1
+        ;;
+      --*)
+        echo "[setup]: usage: setup [--rm] [--frozen|--locked|--sync] [--dry-run]" >&2
+        return 2
+        ;;
+      *)
+        echo "[setup]: usage: setup [--rm] [--frozen|--locked|--sync] [--dry-run]" >&2
+        return 2
+        ;;
+    esac
+  done
 
-Options:
-  --rm       Remove .venv before install (implies --no-cache where supported)
-  --frozen   Use a locked/frozen install if supported
-  --locked   Same as --frozen
-  --sync     Same as --frozen
-EOF
-    return 0
+  if (( rm_venv )); then
+    if (( dry_run )); then
+      echo "rm -rf .venv"
+    else
+      rm -rf .venv
+    fi
   fi
-  [[ "$arg" == "--rm" ]] && rm -rf .venv && want_no_cache=1 && shift && arg="${1-}"
-  [[ "$arg" == "--frozen" || "$arg" == "--locked" || "$arg" == "--sync" ]] && want_frozen=1
 
   _need() { command -v "$1" >/dev/null 2>&1 || { echo "[setup]: $2" >&2; return 127; }; }
   _has()  { [[ -f "$1" ]] || return 1; }
@@ -28,6 +73,10 @@ EOF
     local uv_opts="--all-extras"
     (( want_frozen )) && uv_opts="$uv_opts --frozen"
     (( want_no_cache )) && uv_opts="$uv_opts --no-cache"
+    if (( dry_run )); then
+      echo "uv sync $uv_opts"
+      return 0
+    fi
     uv sync $uv_opts
     return $?
   fi
@@ -35,8 +84,12 @@ EOF
   if _has poetry.lock || _tbl tool.poetry; then
     _need poetry "poetry required but not on PATH" || return $?
     local poetry_opts="--all-extras"
-    [[ "$arg" == "--frozen" || "$arg" == "--locked" || "$arg" == "--sync" ]] && poetry_opts="$poetry_opts --sync"
+    (( want_frozen )) && poetry_opts="$poetry_opts --sync"
     (( want_no_cache )) && poetry_opts="$poetry_opts --no-cache"
+    if (( dry_run )); then
+      echo "poetry install $poetry_opts"
+      return 0
+    fi
     poetry install $poetry_opts
     return $?
   fi

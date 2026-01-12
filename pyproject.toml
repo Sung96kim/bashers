@@ -19,12 +19,12 @@ classifiers = [
 
 [tool.hatch.build.targets.wheel]
 packages = ["bashers"]
-include = ["bashers/*"]
+include = ["bashers/**"]
 shared-scripts = { "bashers/bashers" = "bashers" }
 exclude = ["bashers/__pycache__/*"]
 
 [tool.hatch.build.targets.sdist]
-include = ["bashers/*", "README.md", "pyproject.toml"]
+include = ["bashers/**", "README.md", "pyproject.toml"]
 exclude = ["bashers/__pycache__/*"]
 
 [tool.semantic_release]
