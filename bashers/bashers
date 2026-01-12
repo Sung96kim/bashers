@@ -1,16 +1,29 @@
 #!/usr/bin/env bash
 
+_bashers_python() {
+  local candidate
+  candidate="$(dirname "$0")/python"
+  if [[ -x "$candidate" ]]; then
+    echo "$candidate"
+    return 0
+  fi
+  command -v python3 2>/dev/null || command -v python 2>/dev/null
+}
+
 _bashers_find_lib() {
   local pkg_dir=""
-  pkg_dir="$(
-    python - <<'PY'
+  local python_bin="$(_bashers_python)"
+  if [[ -n "$python_bin" ]]; then
+    pkg_dir="$(
+      "$python_bin" - <<'PY'
 import importlib.resources as resources
 print(resources.files("bashers"))
 PY
-  )"
-  if [[ -n "$pkg_dir" && -f "$pkg_dir/_bashers_lib" ]]; then
-    echo "$pkg_dir/_bashers_lib"
-    return 0
+    )"
+    if [[ -n "$pkg_dir" && -f "$pkg_dir/_bashers_lib" ]]; then
+      echo "$pkg_dir/_bashers_lib"
+      return 0
+    fi
   fi
 
   local dir
@@ -65,12 +78,16 @@ print_help() {
 }
 
 if [[ $# -eq 0 ]]; then
-  pkg_dir="$(
-    python - <<'PY'
+  python_bin="$(_bashers_python)"
+  pkg_dir=""
+  if [[ -n "$python_bin" ]]; then
+    pkg_dir="$(
+      "$python_bin" - <<'PY'
 import importlib.resources as resources
 print(resources.files("bashers"))
 PY
-  )"
+    )"
+  fi
   print_help "$pkg_dir"
   exit 0
 fi
@@ -80,23 +97,36 @@ shift
 
 case "$command" in
   help|-h|--help)
-    pkg_dir="$(
-      python - <<'PY'
+    python_bin="$(_bashers_python)"
+    pkg_dir=""
+    if [[ -n "$python_bin" ]]; then
+      pkg_dir="$(
+        "$python_bin" - <<'PY'
 import importlib.resources as resources
 print(resources.files("bashers"))
 PY
-    )"
+      )"
+    fi
     print_help "$pkg_dir"
     exit 0
     ;;
 esac
 
-pkg_dir="$(
-  python - <<'PY'
+python_bin="$(_bashers_python)"
+pkg_dir=""
+if [[ -n "$python_bin" ]]; then
+  pkg_dir="$(
+    "$python_bin" - <<'PY'
 import importlib.resources as resources
 print(resources.files("bashers"))
 PY
-)"
+  )"
+fi
+
+if [[ -z "$pkg_dir" || ! -d "$pkg_dir" ]]; then
+  echo "bashers: unable to locate package data (missing bashers install?)" >&2
+  exit 127
+fi
 
 script_path=""
 if [[ "$command" == */* ]]; then
