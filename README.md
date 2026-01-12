@@ -3,16 +3,22 @@ Installable bash command helpers
 
 ## Installation
 
-Install the package:
+Install from PyPI:
 
 ```bash
-pip install .
+pip install bashers
 ```
 
 Or with uv:
 
 ```bash
-uv pip install .
+uv pip install bashers
+```
+
+Local install (from this repo):
+
+```bash
+pip install .
 ```
 
 Or install from a built wheel:
