@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+
+if [ $# -eq 0 ]; then
+    echo "Bashers - Bash command helpers"
+    echo "Usage: bashers <command> [args...]"
+    exit 0
+fi
+
+command="$1"
+shift
+
+case "$command" in
+    help)
+        echo "Available commands:"
+        echo "  help - Show this help message"
+        ;;
+    *)
+        echo "Command '$command' not found. Use 'bashers help' for available commands."
+        exit 1
+        ;;
+esac
