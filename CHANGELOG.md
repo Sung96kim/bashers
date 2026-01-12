@@ -1,6 +1,14 @@
 # CHANGELOG
 
 
+## v0.2.3 (2026-01-12)
+
+### Bug Fixes
+
+- Loader cleanup
+  ([`21cd06a`](https://github.com/Sung96kim/bashers/commit/21cd06ad2d98a570f8130c0398ef8b2e4db5e663))
+
+
 ## v0.2.2 (2026-01-12)
 
 ### Bug Fixes
