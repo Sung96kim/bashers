@@ -77,6 +77,15 @@ print_help() {
   echo "Use ${BASHERS_BOLD}bashers <command> --help${BASHERS_RESET} for more details."
 }
 
+_bashers_is_visible() {
+  local rel="$1"
+  [[ -z "$rel" ]] && return 1
+  [[ "$rel" == __* || "$rel" == .* || "$rel" == _* ]] && return 1
+  [[ "$rel" == */__* || "$rel" == */.* || "$rel" == */_* ]] && return 1
+  [[ "$rel" == *.py || "$rel" == *.pyc ]] && return 1
+  return 0
+}
+
 if [[ $# -eq 0 ]]; then
   python_bin="$(_bashers_python)"
   pkg_dir=""
@@ -133,11 +142,12 @@ if [[ "$command" == */* ]]; then
   candidate="$pkg_dir/$command"
   [[ -f "$candidate" ]] && script_path="$candidate"
 else
-  mapfile -t matches < <(find "$pkg_dir" -type f -name "$command" \
-    | grep -vE '(^__|/__)' \
-    | grep -vE '(^\.|/\.)' \
-    | grep -vE '(^_|/_)' \
-    | grep -vE '\.(py|pyc)$')
+  matches=()
+  while IFS= read -r candidate; do
+    rel="${candidate#"$pkg_dir"/}"
+    _bashers_is_visible "$rel" || continue
+    matches+=("$candidate")
+  done < <(find "$pkg_dir" -type f -name "$command")
   if [[ ${#matches[@]} -gt 1 ]]; then
     echo "Command '$command' is ambiguous. Use a path:" >&2
     for match in "${matches[@]}"; do
