@@ -1,6 +1,14 @@
 # CHANGELOG
 
 
+## v0.2.2 (2026-01-12)
+
+### Bug Fixes
+
+- Command path
+  ([`d520915`](https://github.com/Sung96kim/bashers/commit/d5209150a31aa4942be0a5347c89b46bd8dc68ac))
+
+
 ## v0.2.1 (2026-01-12)
 
 ### Bug Fixes
