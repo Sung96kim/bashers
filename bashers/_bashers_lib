@@ -32,9 +32,17 @@ _bashers_print_bullet() {
 _bashers_run() {
   local -a cmd=("$@")
   if [[ -t 1 && -z "${NO_SPINNER-}" ]]; then
+    local out_file err_file
+    out_file="$(mktemp 2>/dev/null)" || out_file=""
+    err_file="$(mktemp 2>/dev/null)" || err_file=""
+    if [[ -z "$out_file" || -z "$err_file" ]]; then
+      "${cmd[@]}"
+      return $?
+    fi
+
     local spin='|/-\\'
     local i=0
-    "${cmd[@]}" &
+    "${cmd[@]}" >"$out_file" 2>"$err_file" &
     local pid=$!
     while kill -0 "$pid" 2>/dev/null; do
       printf "\r%s%s%s" "$BASHERS_CYAN" "${spin:i%4:1}" "$BASHERS_RESET" >&2
@@ -44,6 +52,9 @@ _bashers_run() {
     wait "$pid"
     local status=$?
     printf "\r\033[K" >&2
+    cat "$out_file"
+    cat "$err_file" >&2
+    rm -f "$out_file" "$err_file"
     return "$status"
   fi
 
