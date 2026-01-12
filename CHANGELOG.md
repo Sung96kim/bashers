@@ -1,6 +1,14 @@
 # CHANGELOG
 
 
+## v0.1.1 (2026-01-12)
+
+### Bug Fixes
+
+- Readme
+  ([`07568c5`](https://github.com/Sung96kim/bashers/commit/07568c549fda9df79cb175401959d20e919c3ab6))
+
+
 ## v0.1.0 (2026-01-12)
 
 ### Features
