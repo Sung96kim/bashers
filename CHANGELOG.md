@@ -1,6 +1,14 @@
 # CHANGELOG
 
 
+## v0.2.0 (2026-01-12)
+
+### Features
+
+- Colorized help text, dry runs
+  ([`5e07058`](https://github.com/Sung96kim/bashers/commit/5e0705854ecb2b8f7d97d90420735773fbb79dad))
+
+
 ## v0.1.1 (2026-01-12)
 
 ### Bug Fixes
