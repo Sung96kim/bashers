@@ -23,11 +23,24 @@ pip install dist/bashers-*.whl
 
 ## Usage
 
-After installation, the commands are immediately available on your PATH:
+After installation, use the `bashers` dispatcher:
 
 ```bash
-update [package]
+bashers update
+bashers update requests
+bashers show
+bashers show requests
+bashers setup
+bashers setup --frozen
 ```
+
+Verify the command is on PATH:
+
+```bash
+which bashers
+```
+
+If you are using a virtualenv or `uv`, make sure its `bin/` directory is active in your shell.
 
 ## Development
 
@@ -45,6 +58,6 @@ pip install -e .
 
 ## Adding New Commands
 
-1. Add your bash script to the `bashers/` directory
+1. Add your bash script under the `bashers/` directory (subfolders are OK)
 2. If you want a bash function, define a function with the same name as the file
 3. Reinstall: `uv sync` or `pip install -e .`

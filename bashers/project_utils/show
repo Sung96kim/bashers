@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+
+show() {
+  if [[ "${1-}" == "-h" || "${1-}" == "--help" ]]; then
+    cat <<'EOF'
+Usage: show [pattern...]
+
+List installed Python packages for the current project.
+
+With patterns, filters results (case-insensitive).
+Works with uv or poetry projects.
+EOF
+    return 0
+  fi
+  _need() { command -v "$1" >/dev/null 2>&1 || { echo "[show]: $1 not on PATH" >&2; return 127; }; }
+  _has_project() { [[ -f pyproject.toml ]] && grep -qE '^\[project\]' pyproject.toml; }
+  _has_poetry() { [[ -f pyproject.toml ]] && grep -qE '^\[tool\.poetry\]' pyproject.toml; }
+
+  if [[ -f uv.lock ]] || _has_project; then
+    _need uv || return $?
+    if [[ $# -eq 0 ]]; then
+      uv pip list
+    else
+      uv pip list | grep -iE "$(IFS='|'; echo "$*")"
+    fi
+    return $?
+  fi
+
+  if [[ -f poetry.lock ]] || _has_poetry; then
+    _need poetry || return $?
+    if [[ $# -eq 0 ]]; then
+      poetry show
+    else
+      poetry show | grep -iE "$(IFS='|'; echo "$*")"
+    fi
+    return $?
+  fi
+
+  echo "[show]: no uv/poetry project found in $(pwd)" >&2
+  return 2
+}

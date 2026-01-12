@@ -1,0 +1,82 @@
+#!/usr/bin/env bash
+
+print_help() {
+  local pkg_dir="$1"
+  echo "Bashers - Bash command helpers"
+  echo "Usage: bashers <command> [args...]"
+  echo ""
+  echo "Available commands:"
+  if [[ -d "$pkg_dir" ]]; then
+    find "$pkg_dir" -type f \
+      | sed "s|^$pkg_dir/||" \
+      | grep -vE '(^__|/__)' \
+      | grep -vE '(^\.|/\.)' \
+      | grep -vE '\.(py|pyc)$' \
+      | sort \
+      | sed 's/^/  /'
+  fi
+}
+
+if [[ $# -eq 0 ]]; then
+  pkg_dir="$(
+    python - <<'PY'
+import importlib.resources as resources
+print(resources.files("bashers"))
+PY
+  )"
+  print_help "$pkg_dir"
+  exit 0
+fi
+
+command="$1"
+shift
+
+case "$command" in
+  help|-h|--help)
+    pkg_dir="$(
+      python - <<'PY'
+import importlib.resources as resources
+print(resources.files("bashers"))
+PY
+    )"
+    print_help "$pkg_dir"
+    exit 0
+    ;;
+esac
+
+pkg_dir="$(
+  python - <<'PY'
+import importlib.resources as resources
+print(resources.files("bashers"))
+PY
+)"
+
+script_path=""
+if [[ "$command" == */* ]]; then
+  candidate="$pkg_dir/$command"
+  [[ -f "$candidate" ]] && script_path="$candidate"
+else
+  mapfile -t matches < <(find "$pkg_dir" -type f -name "$command" \
+    | grep -vE '(^__|/__)' \
+    | grep -vE '(^\.|/\.)' \
+    | grep -vE '\.(py|pyc)$')
+  if [[ ${#matches[@]} -gt 1 ]]; then
+    echo "Command '$command' is ambiguous. Use a path:" >&2
+    for match in "${matches[@]}"; do
+      echo "  ${match#"$pkg_dir"/}" >&2
+    done
+    exit 2
+  fi
+  [[ ${#matches[@]} -eq 1 ]] && script_path="${matches[0]}"
+fi
+
+if [[ -n "$script_path" && -f "$script_path" ]]; then
+  script_name="$(basename "$script_path")"
+  if grep -qE "^[[:space:]]*${script_name}[[:space:]]*\\(\\)[[:space:]]*\\{" "$script_path"; then
+    exec bash -c "source \"$script_path\" && $script_name \"\$@\"" -- "$@"
+  fi
+  exec "$script_path" "$@"
+fi
+
+echo "Command '$command' not found. Use 'bashers help' for available commands."
+exit 1

@@ -3,6 +3,18 @@
 update() {
   local pkg="${1-}"
 
+  if [[ "$pkg" == "-h" || "$pkg" == "--help" ]]; then
+    cat <<'EOF'
+Usage: update [package]
+
+Update Python dependencies in the current project.
+
+If [package] is provided, updates just that package (with fuzzy matching).
+Works with uv or poetry projects.
+EOF
+    return 0
+  fi
+
   [[ -n "$pkg" && "$pkg" == -* ]] && { echo "[update]: usage: update [package]" >&2; return 2; }
   _need() { command -v "$1" >/dev/null 2>&1 || { echo "[update]: $1 not on PATH" >&2; return 127; }; }
   _has_project() { [[ -f pyproject.toml ]] && grep -qE '^\[project\]' pyproject.toml; }

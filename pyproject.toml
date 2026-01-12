@@ -1,5 +1,5 @@
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling>=1.24.1"]
 build-backend = "hatchling.build"
 
 [project]
@@ -20,14 +20,12 @@ classifiers = [
 [tool.hatch.build.targets.wheel]
 packages = ["bashers"]
 include = ["bashers/*"]
+shared-scripts = { "bashers/bashers" = "bashers" }
 exclude = ["bashers/__pycache__/*"]
 
 [tool.hatch.build.targets.sdist]
 include = ["bashers/*", "README.md", "pyproject.toml"]
 exclude = ["bashers/__pycache__/*"]
-
-[tool.hatch.build.hooks.custom]
-path = "hatch_build_hook.py"
 
 [tool.semantic_release]
 branch = "main"

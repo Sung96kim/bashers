@@ -1,0 +1,46 @@
+#!/usr/bin/env bash
+
+setup() {
+  local arg="${1-}" want_frozen=0 want_no_cache=0
+  if [[ "$arg" == "-h" || "$arg" == "--help" ]]; then
+    cat <<'EOF'
+Usage: setup [--rm] [--frozen|--locked|--sync]
+
+Install project dependencies using uv or poetry.
+
+Options:
+  --rm       Remove .venv before install (implies --no-cache where supported)
+  --frozen   Use a locked/frozen install if supported
+  --locked   Same as --frozen
+  --sync     Same as --frozen
+EOF
+    return 0
+  fi
+  [[ "$arg" == "--rm" ]] && rm -rf .venv && want_no_cache=1 && shift && arg="${1-}"
+  [[ "$arg" == "--frozen" || "$arg" == "--locked" || "$arg" == "--sync" ]] && want_frozen=1
+
+  _need() { command -v "$1" >/dev/null 2>&1 || { echo "[setup]: $2" >&2; return 127; }; }
+  _has()  { [[ -f "$1" ]] || return 1; }
+  _tbl()  { [[ -f pyproject.toml ]] && grep -Eq "^\[$1\]" pyproject.toml; }
+
+  if _has uv.lock || _tbl project; then
+    _need uv "uv required but not on PATH" || return $?
+    local uv_opts="--all-extras"
+    (( want_frozen )) && uv_opts="$uv_opts --frozen"
+    (( want_no_cache )) && uv_opts="$uv_opts --no-cache"
+    uv sync $uv_opts
+    return $?
+  fi
+
+  if _has poetry.lock || _tbl tool.poetry; then
+    _need poetry "poetry required but not on PATH" || return $?
+    local poetry_opts="--all-extras"
+    [[ "$arg" == "--frozen" || "$arg" == "--locked" || "$arg" == "--sync" ]] && poetry_opts="$poetry_opts --sync"
+    (( want_no_cache )) && poetry_opts="$poetry_opts --no-cache"
+    poetry install $poetry_opts
+    return $?
+  fi
+
+  echo "[setup]: no uv/poetry lockfile and no pyproject.toml with [project]/[tool.poetry] in $(pwd)" >&2
+  return 2
+}
