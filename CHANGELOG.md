@@ -1,6 +1,14 @@
 # CHANGELOG
 
 
+## v0.2.1 (2026-01-12)
+
+### Bug Fixes
+
+- Path resolution
+  ([`59e9e75`](https://github.com/Sung96kim/bashers/commit/59e9e75d8974275d4588fd20a42a19c546194630))
+
+
 ## v0.2.0 (2026-01-12)
 
 ### Features
