@@ -1,6 +1,14 @@
 # CHANGELOG
 
 
+## v0.2.4 (2026-01-13)
+
+### Bug Fixes
+
+- Bashers version
+  ([`14d6c37`](https://github.com/Sung96kim/bashers/commit/14d6c37ca13fc59e5052e0d2703e0b90cbf7487d))
+
+
 ## v0.2.3 (2026-01-12)
 
 ### Bug Fixes
