@@ -35,6 +35,22 @@ PY
   return 1
 }
 
+_bashers_normalize_pkg_dir() {
+  local candidate="$1"
+  if [[ -z "$candidate" ]]; then
+    return 1
+  fi
+  if [[ -f "$candidate/__init__.py" ]]; then
+    echo "$candidate"
+    return 0
+  fi
+  if [[ -f "$candidate/bashers/__init__.py" ]]; then
+    echo "$candidate/bashers"
+    return 0
+  fi
+  echo "$candidate"
+}
+
 _bashers_version() {
   local python_bin="$(_bashers_python)"
   if [[ -z "$python_bin" ]]; then
@@ -101,6 +117,7 @@ _bashers_install_completion() {
 _bashers_find_lib() {
   local pkg_dir=""
   pkg_dir="$(_bashers_pkg_dir)"
+  pkg_dir="$(_bashers_normalize_pkg_dir "$pkg_dir")"
   if [[ -n "$pkg_dir" && -f "$pkg_dir/_bashers_lib" ]]; then
     echo "$pkg_dir/_bashers_lib"
     return 0
@@ -167,6 +184,7 @@ _bashers_is_visible() {
   local rel="$1"
   [[ -z "$rel" ]] && return 1
   [[ "$rel" == completions/* ]] && return 1
+  [[ "$rel" == utils/* ]] && return 1
   [[ "$rel" == "bashers" ]] && return 1
   [[ "$rel" == __* || "$rel" == .* || "$rel" == _* ]] && return 1
   [[ "$rel" == */__* || "$rel" == */.* || "$rel" == */_* ]] && return 1
@@ -176,6 +194,7 @@ _bashers_is_visible() {
 
 if [[ $# -eq 0 ]]; then
   pkg_dir="$(_bashers_pkg_dir)"
+  pkg_dir="$(_bashers_normalize_pkg_dir "$pkg_dir")"
   print_help "$pkg_dir"
   exit 0
 fi
@@ -186,6 +205,7 @@ shift
 case "$command" in
   help|-h|--help)
     pkg_dir="$(_bashers_pkg_dir)"
+    pkg_dir="$(_bashers_normalize_pkg_dir "$pkg_dir")"
     print_help "$pkg_dir"
     exit 0
     ;;
@@ -195,6 +215,7 @@ case "$command" in
     ;;
   completion)
     pkg_dir="$(_bashers_pkg_dir)"
+    pkg_dir="$(_bashers_normalize_pkg_dir "$pkg_dir")"
     if [[ -f "$pkg_dir/completions/bashers.bash" ]]; then
       cat "$pkg_dir/completions/bashers.bash"
       exit 0
@@ -204,12 +225,14 @@ case "$command" in
     ;;
   _commands)
     pkg_dir="$(_bashers_pkg_dir)"
+    pkg_dir="$(_bashers_normalize_pkg_dir "$pkg_dir")"
     _bashers_list_commands "$pkg_dir"
     exit 0
     ;;
 esac
 
 pkg_dir="$(_bashers_pkg_dir)"
+pkg_dir="$(_bashers_normalize_pkg_dir "$pkg_dir")"
 
 if [[ -z "$pkg_dir" || ! -d "$pkg_dir" ]]; then
   echo "bashers: unable to locate package data (missing bashers install?)" >&2

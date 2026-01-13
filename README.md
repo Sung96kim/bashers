@@ -65,6 +65,11 @@ If you prefer, you can enable it manually (example):
 bashers completion > ~/.bash_completion.d/bashers
 ```
 
+## Spinner
+
+The default loader uses a built-in `dots13` spinner and has no extra dependencies.
+Disable it with `NO_SPINNER=1`.
+
 ## Development
 
 To install in development mode:
