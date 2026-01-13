@@ -1,6 +1,14 @@
 # CHANGELOG
 
 
+## v0.4.0 (2026-01-13)
+
+### Features
+
+- Github scripts
+  ([`b889fb6`](https://github.com/Sung96kim/bashers/commit/b889fb687998ebd7b25cf71dd05e1a3fe9e7f2ce))
+
+
 ## v0.3.0 (2026-01-13)
 
 ### Features
