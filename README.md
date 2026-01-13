@@ -38,6 +38,8 @@ bashers show
 bashers show requests
 bashers setup
 bashers setup --frozen
+bashers gh
+bashers gh --dry-run
 ```
 
 Verify the command is on PATH:

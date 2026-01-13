@@ -10,6 +10,13 @@ _bashers_python() {
   command -v python3 2>/dev/null || command -v python 2>/dev/null
 }
 
+_bashers_require_python() {
+  if [[ -z "$(_bashers_python)" ]]; then
+    echo "bashers: python is required but not found on PATH" >&2
+    exit 127
+  fi
+}
+
 _bashers_pkg_dir() {
   if [[ -n "${BASHERS_DIR-}" ]]; then
     echo "$BASHERS_DIR"
@@ -113,6 +120,8 @@ _bashers_find_lib() {
 
 _bashers_lib="$(_bashers_find_lib)"
 [[ -n "$_bashers_lib" ]] && source "$_bashers_lib"
+
+_bashers_require_python
 
 print_help() {
   local pkg_dir="$1"

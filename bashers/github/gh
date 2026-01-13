@@ -1,0 +1,67 @@
+#!/usr/bin/env bash
+
+_bashers_find_lib() {
+  local dir
+  dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  while [[ "$dir" != "/" ]]; do
+    if [[ -f "$dir/_bashers_lib" ]]; then
+      echo "$dir/_bashers_lib"
+      return 0
+    fi
+    dir="$(dirname "$dir")"
+  done
+  return 1
+}
+
+_bashers_lib="$(_bashers_find_lib)"
+[[ -n "$_bashers_lib" ]] && source "$_bashers_lib"
+
+gh() {
+  if [[ "${1-}" == "-h" || "${1-}" == "--help" ]]; then
+    _bashers_color_init
+    _bashers_print_title "gh"
+    _bashers_print_usage "gh [--dry-run]"
+    _bashers_print_section "Description"
+    _bashers_print_bullet "Git home: check out the default branch, pull, and fetch all."
+    _bashers_print_section "Options"
+    _bashers_print_kv "--dry-run" "Print the commands without executing"
+    return 0
+  fi
+
+  local dry_run=0
+  for arg in "$@"; do
+    case "$arg" in
+      --dry-run)
+        dry_run=1
+        ;;
+      --*)
+        echo "[gh]: usage: gh [--dry-run]" >&2
+        return 2
+        ;;
+    esac
+  done
+
+  default_branch=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/origin/@@')
+  if [ -z "$default_branch" ]; then
+    echo -e "\n\e[31mCould not determine default branch. Are you in a git repository?\e[0m\n"
+    return 1
+  fi
+  echo -e "\n\e[31mChecking out '$default_branch'\e[0m\n"
+  if (( dry_run )); then
+    echo "git checkout \"$default_branch\""
+  else
+    git checkout "$default_branch"
+  fi
+  echo -e "\n\e[32mPulling origin '$default_branch'\e[0m\n"
+  if (( dry_run )); then
+    echo "gpo"
+  else
+    gpo
+  fi
+  echo -e "\n\e[32mFetching all\e[0m\n"
+  if (( dry_run )); then
+    echo "git fetch --all"
+  else
+    git fetch --all
+  fi
+}
