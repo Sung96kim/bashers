@@ -1,6 +1,14 @@
 # CHANGELOG
 
 
+## v0.3.0 (2026-01-13)
+
+### Features
+
+- Bash auto completions
+  ([`1239813`](https://github.com/Sung96kim/bashers/commit/12398133a59e4d8e8d06006963e948a2f86298e3))
+
+
 ## v0.2.4 (2026-01-13)
 
 ### Bug Fixes
