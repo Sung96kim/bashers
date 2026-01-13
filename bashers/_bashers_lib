@@ -32,32 +32,21 @@ _bashers_print_bullet() {
 _bashers_run() {
   local -a cmd=("$@")
   if [[ -t 1 && -z "${NO_SPINNER-}" ]]; then
-    local out_file err_file
-    out_file="$(mktemp 2>/dev/null)" || out_file=""
-    err_file="$(mktemp 2>/dev/null)" || err_file=""
-    if [[ -z "$out_file" || -z "$err_file" ]]; then
-      "${cmd[@]}"
-      return $?
-    fi
-
     _bashers_color_init
     local -a frames=("⣾" "⣽" "⣻" "⢿" "⡿" "⣟" "⣯" "⣷")
     local interval="0.08"
-    "${cmd[@]}" >"$out_file" 2>"$err_file" &
+    "${cmd[@]}" &
     local pid=$!
     local i=0
     printf "\033[?25l" >&2
     while kill -0 "$pid" 2>/dev/null; do
-      printf "\r%s%s%s Working...\033[K" "$BASHERS_CYAN" "${frames[i]}" "$BASHERS_RESET" >&2
+      printf "\rWorking... %s%s%s\033[K" "$BASHERS_CYAN" "${frames[i]}" "$BASHERS_RESET" >&2
       sleep "$interval"
       i=$(( (i + 1) % ${#frames[@]} ))
     done
     wait "$pid"
     local status=$?
     printf "\r\033[K\033[?25h" >&2
-    cat "$out_file"
-    cat "$err_file" >&2
-    rm -f "$out_file" "$err_file"
     return "$status"
   fi
 
