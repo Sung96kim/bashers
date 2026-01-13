@@ -10,6 +10,21 @@ _bashers_python() {
   command -v python3 2>/dev/null || command -v python 2>/dev/null
 }
 
+_bashers_version() {
+  local python_bin="$(_bashers_python)"
+  if [[ -z "$python_bin" ]]; then
+    echo "unknown"
+    return 0
+  fi
+  "$python_bin" - <<'PY'
+import importlib.metadata as metadata
+try:
+    print(metadata.version("bashers"))
+except metadata.PackageNotFoundError:
+    print("unknown")
+PY
+}
+
 _bashers_find_lib() {
   local pkg_dir=""
   local python_bin="$(_bashers_python)"
@@ -117,6 +132,10 @@ PY
       )"
     fi
     print_help "$pkg_dir"
+    exit 0
+    ;;
+  --version|-V)
+    echo "bashers $(_bashers_version)"
     exit 0
     ;;
 esac
