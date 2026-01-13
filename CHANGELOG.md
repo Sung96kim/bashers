@@ -1,6 +1,14 @@
 # CHANGELOG
 
 
+## v0.4.5 (2026-01-13)
+
+### Bug Fixes
+
+- Disable spinner for now
+  ([`a055b76`](https://github.com/Sung96kim/bashers/commit/a055b76afcefb9c593ca2f9998dbcfa5d129df68))
+
+
 ## v0.4.4 (2026-01-13)
 
 ### Bug Fixes
