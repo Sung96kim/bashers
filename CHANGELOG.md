@@ -1,6 +1,14 @@
 # CHANGELOG
 
 
+## v0.4.6 (2026-01-13)
+
+### Bug Fixes
+
+- Add version command
+  ([`49c9a5e`](https://github.com/Sung96kim/bashers/commit/49c9a5eaaadf52fcfc04c65507a8f793aee2db82))
+
+
 ## v0.4.5 (2026-01-13)
 
 ### Bug Fixes
