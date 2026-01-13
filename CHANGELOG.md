@@ -1,6 +1,14 @@
 # CHANGELOG
 
 
+## v0.4.4 (2026-01-13)
+
+### Bug Fixes
+
+- Loader with fzf interaction
+  ([`70dce37`](https://github.com/Sung96kim/bashers/commit/70dce37fbe668e15c27535d88426219d5fe588a3))
+
+
 ## v0.4.3 (2026-01-13)
 
 ### Bug Fixes
