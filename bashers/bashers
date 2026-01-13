@@ -161,6 +161,7 @@ print_help() {
   _bashers_print_section "Commands"
   _bashers_print_kv "help" "Display help for bashers or a command"
   _bashers_print_kv "completion" "Print bash completion script"
+  _bashers_print_kv "version" "Print bashers version"
   if [[ -d "$pkg_dir" ]]; then
     declare -A descriptions=(
       [setup]="Install project dependencies (uv/poetry)"
@@ -210,6 +211,10 @@ case "$command" in
     exit 0
     ;;
   --version|-V)
+    echo "bashers $(_bashers_version)"
+    exit 0
+    ;;
+  version)
     echo "bashers $(_bashers_version)"
     exit 0
     ;;
