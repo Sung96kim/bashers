@@ -1,6 +1,14 @@
 # CHANGELOG
 
 
+## v0.4.2 (2026-01-13)
+
+### Bug Fixes
+
+- Loader
+  ([`dc58145`](https://github.com/Sung96kim/bashers/commit/dc5814523d25aaa21bda6e165525ecd41e723923))
+
+
 ## v0.4.1 (2026-01-13)
 
 ### Bug Fixes
