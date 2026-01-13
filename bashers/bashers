@@ -113,7 +113,9 @@ _bashers_find_lib() {
       echo "$dir/_bashers_lib"
       return 0
     fi
-    dir="$(dirname "$dir")"
+    local parent="$(dirname "$dir")"
+    [[ "$parent" == "$dir" ]] && break
+    dir="$parent"
   done
   return 1
 }
