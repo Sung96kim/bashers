@@ -264,6 +264,9 @@ fi
 
 if [[ -n "$script_path" && -f "$script_path" ]]; then
   script_name="$(basename "$script_path")"
+  if [[ "$script_name" == "update" || "$script_name" == "setup" ]]; then
+    export NO_SPINNER=1
+  fi
   _bashers_color_init
   if grep -qE "^[[:space:]]*${script_name}[[:space:]]*\\(\\)[[:space:]]*\\{" "$script_path"; then
     _bashers_run bash -c "source \"$script_path\" && $script_name \"\$@\"" -- "$@"

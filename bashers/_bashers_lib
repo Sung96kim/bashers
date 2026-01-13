@@ -29,24 +29,81 @@ _bashers_print_bullet() {
   printf "  %s-%s %s\n" "$BASHERS_CYAN" "$BASHERS_RESET" "$1"
 }
 
+_bashers_shell_join() {
+  local out=""
+  local part
+  for part in "$@"; do
+    out+=$(printf '%q ' "$part")
+  done
+  printf '%s' "${out% }"
+}
+
+_bashers_command_runner() {
+  if command -v script >/dev/null 2>&1; then
+    local cmd_str
+    cmd_str="$(_bashers_shell_join "$@")"
+    printf 'script -q /dev/null -c %q' "$cmd_str"
+    return 0
+  fi
+  return 1
+}
+
 _bashers_run() {
   local -a cmd=("$@")
-  if [[ -t 1 && -z "${NO_SPINNER-}" ]]; then
+  if false; then
     _bashers_color_init
     local -a frames=("⣾" "⣽" "⣻" "⢿" "⡿" "⣟" "⣯" "⣷")
     local interval="0.08"
-    "${cmd[@]}" &
+    local fifo flag ready
+    fifo="$(mktemp -u 2>/dev/null)" || fifo=""
+    flag="$(mktemp 2>/dev/null)" || flag=""
+    ready="$(mktemp 2>/dev/null)" || ready=""
+    if [[ -z "$fifo" || -z "$flag" ]]; then
+      "${cmd[@]}"
+      return $?
+    fi
+    rm -f "$flag"
+    rm -f "$ready"
+    mkfifo "$fifo" || { "${cmd[@]}"; return $?; }
+
+    local runner
+    runner="$(_bashers_command_runner "${cmd[@]}")" || { "${cmd[@]}"; return $?; }
+    bash -c "$runner" >"$fifo" 2>&1 &
     local pid=$!
     local i=0
     printf "\033[?25l" >&2
+
+    {
+      if IFS= read -r -n1 ch; then
+        : >"$flag"
+        while [[ ! -f "$ready" ]]; do
+          sleep 0.01
+        done
+        printf "\r\033[K%s" "$ch"
+        cat
+      fi
+    } <"$fifo" &
+    local reader_pid=$!
+
     while kill -0 "$pid" 2>/dev/null; do
+      if [[ -f "$flag" ]]; then
+        printf "\r\033[K\033[?25h" >&2
+        : >"$ready"
+        break
+      fi
       printf "\rWorking... %s%s%s\033[K" "$BASHERS_CYAN" "${frames[i]}" "$BASHERS_RESET" >&2
       sleep "$interval"
       i=$(( (i + 1) % ${#frames[@]} ))
     done
+
     wait "$pid"
     local status=$?
+    if [[ -f "$flag" && ! -f "$ready" ]]; then
+      : >"$ready"
+    fi
+    wait "$reader_pid" 2>/dev/null
     printf "\r\033[K\033[?25h" >&2
+    rm -f "$fifo" "$flag" "$ready"
     return "$status"
   fi
 
