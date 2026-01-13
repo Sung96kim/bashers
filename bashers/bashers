@@ -10,6 +10,24 @@ _bashers_python() {
   command -v python3 2>/dev/null || command -v python 2>/dev/null
 }
 
+_bashers_pkg_dir() {
+  if [[ -n "${BASHERS_DIR-}" ]]; then
+    echo "$BASHERS_DIR"
+    return 0
+  fi
+
+  local python_bin="$(_bashers_python)"
+  if [[ -n "$python_bin" ]]; then
+    "$python_bin" - <<'PY'
+import importlib.resources as resources
+print(resources.files("bashers"))
+PY
+    return 0
+  fi
+
+  return 1
+}
+
 _bashers_version() {
   local python_bin="$(_bashers_python)"
   if [[ -z "$python_bin" ]]; then
@@ -25,20 +43,60 @@ except metadata.PackageNotFoundError:
 PY
 }
 
+_bashers_list_commands() {
+  local pkg_dir="$1"
+  local rel base
+  declare -A counts=()
+  declare -A rels=()
+
+  while IFS= read -r path; do
+    rel="${path#"$pkg_dir"/}"
+    _bashers_is_visible "$rel" || continue
+    base="$(basename "$rel")"
+    counts["$base"]=$((counts["$base"] + 1))
+    rels["$rel"]=1
+  done < <(find "$pkg_dir" -type f)
+
+  for rel in "${!rels[@]}"; do
+    base="$(basename "$rel")"
+    if [[ ${counts["$base"]} -gt 1 ]]; then
+      echo "$rel"
+    else
+      echo "$base"
+    fi
+  done | sort -u
+}
+
+_bashers_install_completion() {
+  [[ -n "${BASHERS_NO_AUTO_COMPLETION-}" ]] && return 0
+  [[ -z "${BASH_VERSION-}" ]] && return 0
+
+  local pkg_dir="$1"
+  local completion_src="$pkg_dir/completions/bashers.bash"
+  [[ ! -f "$completion_src" ]] && return 0
+
+  local xdg_dir="${XDG_DATA_HOME:-$HOME/.local/share}/bash-completion/completions"
+  local legacy_dir="$HOME/.bash_completion.d"
+  local target=""
+
+  if [[ -d "$xdg_dir" || ! -d "$legacy_dir" ]]; then
+    target="$xdg_dir/bashers"
+  else
+    target="$legacy_dir/bashers"
+  fi
+
+  if [[ ! -f "$target" ]]; then
+    mkdir -p "$(dirname "$target")" 2>/dev/null || return 0
+    cp "$completion_src" "$target" 2>/dev/null || return 0
+  fi
+}
+
 _bashers_find_lib() {
   local pkg_dir=""
-  local python_bin="$(_bashers_python)"
-  if [[ -n "$python_bin" ]]; then
-    pkg_dir="$(
-      "$python_bin" - <<'PY'
-import importlib.resources as resources
-print(resources.files("bashers"))
-PY
-    )"
-    if [[ -n "$pkg_dir" && -f "$pkg_dir/_bashers_lib" ]]; then
-      echo "$pkg_dir/_bashers_lib"
-      return 0
-    fi
+  pkg_dir="$(_bashers_pkg_dir)"
+  if [[ -n "$pkg_dir" && -f "$pkg_dir/_bashers_lib" ]]; then
+    echo "$pkg_dir/_bashers_lib"
+    return 0
   fi
 
   local dir
@@ -65,21 +123,14 @@ print_help() {
   echo ""
   _bashers_print_section "Commands"
   _bashers_print_kv "help" "Display help for bashers or a command"
+  _bashers_print_kv "completion" "Print bash completion script"
   if [[ -d "$pkg_dir" ]]; then
     declare -A descriptions=(
       [setup]="Install project dependencies (uv/poetry)"
       [show]="List installed packages (uv/poetry)"
       [update]="Update dependencies (uv/poetry)"
     )
-    mapfile -t commands < <(find "$pkg_dir" -type f \
-      | sed "s|^$pkg_dir/||" \
-      | grep -vE '(^__|/__)' \
-      | grep -vE '(^\.|/\.)' \
-      | grep -vE '(^_|/_)' \
-      | grep -vE '^bashers$' \
-      | grep -vE '\.(py|pyc)$' \
-      | xargs -n1 basename \
-      | sort -u)
+    mapfile -t commands < <(_bashers_list_commands "$pkg_dir")
     for cmd in "${commands[@]}"; do
       if [[ -n "${descriptions[$cmd]-}" ]]; then
         _bashers_print_kv "$cmd" "${descriptions[$cmd]}"
@@ -95,6 +146,8 @@ print_help() {
 _bashers_is_visible() {
   local rel="$1"
   [[ -z "$rel" ]] && return 1
+  [[ "$rel" == completions/* ]] && return 1
+  [[ "$rel" == "bashers" ]] && return 1
   [[ "$rel" == __* || "$rel" == .* || "$rel" == _* ]] && return 1
   [[ "$rel" == */__* || "$rel" == */.* || "$rel" == */_* ]] && return 1
   [[ "$rel" == *.py || "$rel" == *.pyc ]] && return 1
@@ -102,16 +155,7 @@ _bashers_is_visible() {
 }
 
 if [[ $# -eq 0 ]]; then
-  python_bin="$(_bashers_python)"
-  pkg_dir=""
-  if [[ -n "$python_bin" ]]; then
-    pkg_dir="$(
-      "$python_bin" - <<'PY'
-import importlib.resources as resources
-print(resources.files("bashers"))
-PY
-    )"
-  fi
+  pkg_dir="$(_bashers_pkg_dir)"
   print_help "$pkg_dir"
   exit 0
 fi
@@ -121,16 +165,7 @@ shift
 
 case "$command" in
   help|-h|--help)
-    python_bin="$(_bashers_python)"
-    pkg_dir=""
-    if [[ -n "$python_bin" ]]; then
-      pkg_dir="$(
-        "$python_bin" - <<'PY'
-import importlib.resources as resources
-print(resources.files("bashers"))
-PY
-      )"
-    fi
+    pkg_dir="$(_bashers_pkg_dir)"
     print_help "$pkg_dir"
     exit 0
     ;;
@@ -138,23 +173,30 @@ PY
     echo "bashers $(_bashers_version)"
     exit 0
     ;;
+  completion)
+    pkg_dir="$(_bashers_pkg_dir)"
+    if [[ -f "$pkg_dir/completions/bashers.bash" ]]; then
+      cat "$pkg_dir/completions/bashers.bash"
+      exit 0
+    fi
+    echo "bashers: completion script not found" >&2
+    exit 1
+    ;;
+  _commands)
+    pkg_dir="$(_bashers_pkg_dir)"
+    _bashers_list_commands "$pkg_dir"
+    exit 0
+    ;;
 esac
 
-python_bin="$(_bashers_python)"
-pkg_dir=""
-if [[ -n "$python_bin" ]]; then
-  pkg_dir="$(
-    "$python_bin" - <<'PY'
-import importlib.resources as resources
-print(resources.files("bashers"))
-PY
-  )"
-fi
+pkg_dir="$(_bashers_pkg_dir)"
 
 if [[ -z "$pkg_dir" || ! -d "$pkg_dir" ]]; then
   echo "bashers: unable to locate package data (missing bashers install?)" >&2
   exit 127
 fi
+
+_bashers_install_completion "$pkg_dir"
 
 script_path=""
 if [[ "$command" == */* ]]; then

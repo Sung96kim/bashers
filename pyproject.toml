@@ -16,6 +16,9 @@ classifiers = [
     "License :: OSI Approved :: MIT License",
 ]
 
+[project.optional-dependencies]
+test = ["pytest"]
+
 
 [tool.hatch.build.targets.wheel]
 packages = ["bashers"]
@@ -30,3 +33,6 @@ exclude = ["bashers/__pycache__/*"]
 [tool.semantic_release]
 branch = "main"
 version_toml = ["pyproject.toml:project.version"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

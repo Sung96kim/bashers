@@ -48,6 +48,21 @@ which bashers
 
 If you are using a virtualenv or `uv`, make sure its `bin/` directory is active in your shell.
 
+## Shell Completion
+
+Bash completion:
+
+```bash
+source <(bashers completion)
+```
+
+The completion script auto-installs to `~/.local/share/bash-completion/completions/bashers` on first run.
+If you prefer, you can enable it manually (example):
+
+```bash
+bashers completion > ~/.bash_completion.d/bashers
+```
+
 ## Development
 
 To install in development mode:
@@ -60,6 +75,12 @@ Or with pip:
 
 ```bash
 pip install -e .
+```
+
+Run tests:
+
+```bash
+pytest
 ```
 
 ## Adding New Commands
