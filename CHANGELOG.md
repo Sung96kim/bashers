@@ -1,6 +1,14 @@
 # CHANGELOG
 
 
+## v0.4.1 (2026-01-13)
+
+### Bug Fixes
+
+- Infinite loop
+  ([`b26aaac`](https://github.com/Sung96kim/bashers/commit/b26aaac6474d0fd292ab1baf86467d144579c3ce))
+
+
 ## v0.4.0 (2026-01-13)
 
 ### Features
