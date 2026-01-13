@@ -2,8 +2,12 @@
 
 _bashers_find_lib() {
   local dir
-  dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-  while [[ "$dir" != "/" ]]; do
+  if [[ -z "${BASH_SOURCE[0]-}" ]]; then
+    return 1
+  fi
+  dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd)" || return 1
+  [[ -z "$dir" ]] && return 1
+  while [[ "$dir" != "/" && -n "$dir" ]]; do
     if [[ -f "$dir/_bashers_lib" ]]; then
       echo "$dir/_bashers_lib"
       return 0
@@ -15,8 +19,13 @@ _bashers_find_lib() {
   return 1
 }
 
-_bashers_lib="$(_bashers_find_lib)"
-[[ -n "$_bashers_lib" ]] && source "$_bashers_lib"
+if [[ -z "${_BASHERS_LIB_LOADED-}" ]]; then
+  _bashers_lib="$(_bashers_find_lib)"
+  if [[ -n "$_bashers_lib" && -f "$_bashers_lib" ]]; then
+    source "$_bashers_lib"
+    _BASHERS_LIB_LOADED=1
+  fi
+fi
 
 setup() {
   local want_frozen=0 want_no_cache=0 dry_run=0 rm_venv=0
