@@ -64,6 +64,8 @@ update() {
     esac
   done
 
+  _bashers_color_init
+
   _need() { command -v "$1" >/dev/null 2>&1 || { echo "[update]: $1 not on PATH" >&2; return 127; }; }
   _has_project() { [[ -f pyproject.toml ]] && grep -qE '^\[project\]' pyproject.toml; }
   _has_poetry() { [[ -f pyproject.toml ]] && grep -qE '^\[tool\.poetry\]' pyproject.toml; }
@@ -87,16 +89,27 @@ update() {
     local all_packages=$(eval "$packages_cmd")
     local matches
     if command -v fzf >/dev/null 2>&1; then
-      matches=$(echo "$all_packages" | fzf --filter="$pkg" 2>/dev/null)
-      [[ -z "$matches" ]] && { echo "[update]: no packages found matching '$pkg'" >&2; return 1; }
+      matches=$(echo "$all_packages" | fzf --filter="$pkg" --select-1 --exit-0 2>/dev/null)
+      if [[ -z "$matches" ]]; then
+        matches=$(echo "$all_packages" | grep -iE "$pkg")
+        [[ -z "$matches" ]] && { echo "[update]: no packages found matching '$pkg'" >&2; return 1; }
+      fi
       local count=$(echo "$matches" | wc -l | tr -d '[:space:]')
-      [[ "$count" -gt 1 ]] && { pkg=$(echo "$matches" | fzf --prompt="Package> " 2>/dev/null); [[ -z "$pkg" ]] && return 1; } || pkg="$matches"
+      if [[ "$count" -gt 1 ]]; then
+        pkg=$(echo "$matches" | fzf --filter="$pkg" --prompt="Package> " 2>/dev/null)
+        [[ -z "$pkg" ]] && return 1
+        printf "%s[update]%s: updating %s%s%s%s\n" "$BASHERS_GREEN" "$BASHERS_RESET" "$BASHERS_GREEN" "$pkg" "$BASHERS_RESET" >&2
+      else
+        pkg="$matches"
+        printf "%s[update]%s: updating %s%s%s%s\n" "$BASHERS_GREEN" "$BASHERS_RESET" "$BASHERS_GREEN" "$pkg" "$BASHERS_RESET" >&2
+      fi
     else
       matches=$(echo "$all_packages" | grep -iE "$pkg")
       local count=$(echo "$matches" | wc -l | tr -d '[:space:]')
       [[ "$count" -eq 0 ]] && { echo "[update]: no packages found matching '$pkg'" >&2; return 1; }
       [[ "$count" -gt 1 ]] && { echo "[update]: multiple packages found. Install fzf for fuzzy selection:" >&2; echo "$matches" | sed 's/^/  /' >&2; return 1; }
       pkg=$(echo "$matches" | head -n 1)
+      printf "%s[update]%s: updating %s%s%s%s\n" "$BASHERS_GREEN" "$BASHERS_RESET" "$BASHERS_GREEN" "$pkg" "$BASHERS_RESET" >&2
     fi
     [[ -z "$pkg" ]] && return 1
   fi

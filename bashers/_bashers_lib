@@ -1,10 +1,12 @@
 _bashers_color_init() {
   BASHERS_BOLD=""
   BASHERS_CYAN=""
+  BASHERS_GREEN=""
   BASHERS_RESET=""
   if [[ -t 1 && -z "${NO_COLOR-}" ]]; then
     BASHERS_BOLD=$'\033[1m'
     BASHERS_CYAN=$'\033[36m'
+    BASHERS_GREEN=$'\033[32m'
     BASHERS_RESET=$'\033[0m'
   fi
 }
