@@ -1,6 +1,14 @@
 # CHANGELOG
 
 
+## v0.4.9 (2026-01-15)
+
+### Bug Fixes
+
+- Python check
+  ([`bd0ca1b`](https://github.com/Sung96kim/bashers/commit/bd0ca1b793a963495f1ddd81738ddbee6bb36827))
+
+
 ## v0.4.8 (2026-01-15)
 
 ### Bug Fixes
