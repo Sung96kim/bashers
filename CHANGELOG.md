@@ -1,6 +1,14 @@
 # CHANGELOG
 
 
+## v0.4.10 (2026-01-15)
+
+### Bug Fixes
+
+- Logging
+  ([`ef311be`](https://github.com/Sung96kim/bashers/commit/ef311be3753945c31c110f9ca35f2a0b3b966d9b))
+
+
 ## v0.4.9 (2026-01-15)
 
 ### Bug Fixes
