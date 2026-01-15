@@ -1,12 +1,21 @@
 #!/usr/bin/env bash
 
 _bashers_python() {
-  local candidate
-  candidate="$(dirname "$0")/python"
+  local script_dir candidate
+  script_dir="$(dirname "$0")"
+  
+  candidate="$script_dir/python3"
   if [[ -x "$candidate" ]]; then
     echo "$candidate"
     return 0
   fi
+  
+  candidate="$script_dir/python"
+  if [[ -x "$candidate" ]]; then
+    echo "$candidate"
+    return 0
+  fi
+  
   command -v python3 2>/dev/null || command -v python 2>/dev/null
 }
 
@@ -25,11 +34,19 @@ _bashers_pkg_dir() {
 
   local python_bin="$(_bashers_python)"
   if [[ -n "$python_bin" ]]; then
-    "$python_bin" - <<'PY'
+    local pkg_dir
+    pkg_dir="$("$python_bin" - <<'PY' 2>/dev/null
 import importlib.resources as resources
-print(resources.files("bashers"))
+try:
+    print(resources.files("bashers"))
+except (ModuleNotFoundError, ImportError):
+    exit(1)
 PY
-    return 0
+)"
+    if [[ -n "$pkg_dir" && -d "$pkg_dir" ]]; then
+      echo "$pkg_dir"
+      return 0
+    fi
   fi
 
   return 1
@@ -164,6 +181,7 @@ print_help() {
   _bashers_print_kv "version" "Print bashers version"
   if [[ -d "$pkg_dir" ]]; then
     declare -A descriptions=(
+      [gh]="Git home: checkout default branch, pull, fetch all"
       [setup]="Install project dependencies (uv/poetry)"
       [show]="List installed packages (uv/poetry)"
       [update]="Update dependencies (uv/poetry)"
@@ -240,7 +258,19 @@ pkg_dir="$(_bashers_pkg_dir)"
 pkg_dir="$(_bashers_normalize_pkg_dir "$pkg_dir")"
 
 if [[ -z "$pkg_dir" || ! -d "$pkg_dir" ]]; then
-  echo "bashers: unable to locate package data (missing bashers install?)" >&2
+  echo "bashers: unable to locate package data" >&2
+  local python_bin="$(_bashers_python)"
+  if [[ -n "$python_bin" ]]; then
+    if command -v pyenv >/dev/null 2>&1; then
+      echo "  bashers is not installed in the current Python version" >&2
+      echo "  Install with: pip install bashers" >&2
+      echo "  Or switch to a Python version that has bashers installed" >&2
+    else
+      echo "  Install with: pip install bashers" >&2
+    fi
+  else
+    echo "  Python not found on PATH" >&2
+  fi
   exit 127
 fi
 

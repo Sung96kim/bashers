@@ -84,10 +84,20 @@ update() {
   fi
 
   if [[ -n "$pkg" ]]; then
-    local matches=$(eval "$packages_cmd" | grep -iE "$pkg")
-    local count=$(echo "$matches" | grep -c . || echo "0")
-    [[ "$count" -eq 0 ]] && { echo "[update]: no packages found matching '$pkg'" >&2; return 1; }
-    [[ "$count" -gt 1 ]] && { _need fzf || return 127; pkg=$(echo "$matches" | fzf --prompt="Package> "); }
+    local all_packages=$(eval "$packages_cmd")
+    local matches
+    if command -v fzf >/dev/null 2>&1; then
+      matches=$(echo "$all_packages" | fzf --filter="$pkg" 2>/dev/null)
+      [[ -z "$matches" ]] && { echo "[update]: no packages found matching '$pkg'" >&2; return 1; }
+      local count=$(echo "$matches" | wc -l | tr -d '[:space:]')
+      [[ "$count" -gt 1 ]] && { pkg=$(echo "$matches" | fzf --prompt="Package> " 2>/dev/null); [[ -z "$pkg" ]] && return 1; } || pkg="$matches"
+    else
+      matches=$(echo "$all_packages" | grep -iE "$pkg")
+      local count=$(echo "$matches" | wc -l | tr -d '[:space:]')
+      [[ "$count" -eq 0 ]] && { echo "[update]: no packages found matching '$pkg'" >&2; return 1; }
+      [[ "$count" -gt 1 ]] && { echo "[update]: multiple packages found. Install fzf for fuzzy selection:" >&2; echo "$matches" | sed 's/^/  /' >&2; return 1; }
+      pkg=$(echo "$matches" | head -n 1)
+    fi
     [[ -z "$pkg" ]] && return 1
   fi
 
