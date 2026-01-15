@@ -1,6 +1,14 @@
 # CHANGELOG
 
 
+## v0.4.8 (2026-01-15)
+
+### Bug Fixes
+
+- Local var
+  ([`b1f39c6`](https://github.com/Sung96kim/bashers/commit/b1f39c602605734c2def05836e32fb46db56b68e))
+
+
 ## v0.4.7 (2026-01-15)
 
 ### Bug Fixes
