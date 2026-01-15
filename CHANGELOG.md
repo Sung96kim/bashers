@@ -1,6 +1,14 @@
 # CHANGELOG
 
 
+## v0.4.7 (2026-01-15)
+
+### Bug Fixes
+
+- Update lib matching, python check
+  ([`fcf6848`](https://github.com/Sung96kim/bashers/commit/fcf6848d39a719934a5dfdccd77592a984108da4))
+
+
 ## v0.4.6 (2026-01-13)
 
 ### Bug Fixes
