@@ -259,7 +259,7 @@ pkg_dir="$(_bashers_normalize_pkg_dir "$pkg_dir")"
 
 if [[ -z "$pkg_dir" || ! -d "$pkg_dir" ]]; then
   echo "bashers: unable to locate package data" >&2
-  local python_bin="$(_bashers_python)"
+  python_bin="$(_bashers_python)"
   if [[ -n "$python_bin" ]]; then
     if command -v pyenv >/dev/null 2>&1; then
       echo "  bashers is not installed in the current Python version" >&2
