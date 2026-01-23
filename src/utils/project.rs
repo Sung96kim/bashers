@@ -93,7 +93,15 @@ mod tests {
 
     #[test]
     fn test_has_project_section() {
-        let test_dir = Path::new("test_project_detection");
+        use std::time::{SystemTime, UNIX_EPOCH};
+        let timestamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let test_dir_name = format!("test_project_detection_{}", timestamp);
+        let test_dir = Path::new(&test_dir_name);
+        
+        // Clean up any existing test directory
         if test_dir.exists() {
             fs::remove_dir_all(test_dir).ok();
         }
@@ -104,12 +112,18 @@ mod tests {
         fs::write(test_dir.join("pyproject.toml"), pyproject_content).unwrap();
 
         let original_dir = std::env::current_dir().unwrap();
-        std::env::set_current_dir(test_dir).unwrap();
+        
+        // Ensure we can change to the test directory
+        assert!(std::env::set_current_dir(test_dir).is_ok(), "Failed to change to test directory");
 
         let result = has_project_section();
-        assert!(result);
+        assert!(result, "has_project_section() should return true when [project] section exists");
 
-        std::env::set_current_dir(original_dir).unwrap();
+        // Always restore the original directory, even if assertion fails
+        let restore_result = std::env::set_current_dir(&original_dir);
+        assert!(restore_result.is_ok(), "Failed to restore original directory");
+        
+        // Clean up
         fs::remove_dir_all(test_dir).ok();
     }
 
