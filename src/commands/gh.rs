@@ -52,22 +52,57 @@ pub fn run(dry_run: bool) -> Result<()> {
 
 fn get_default_branch() -> Result<String> {
     let output = Command::new("git")
+        .args(["ls-remote", "--symref", "origin", "HEAD"])
+        .output()
+        .context("Failed to run git ls-remote")?;
+
+    if output.status.success() {
+        let stdout = String::from_utf8(output.stdout)?;
+        for line in stdout.lines() {
+            if line.starts_with("ref:") && line.contains("HEAD") {
+                let parts: Vec<&str> = line.split_whitespace().collect();
+                if parts.len() >= 2 {
+                    let ref_path = parts[1];
+                    if let Some(branch) = ref_path.strip_prefix("refs/heads/") {
+                        return Ok(branch.to_string());
+                    }
+                }
+            }
+        }
+    }
+
+    let output = Command::new("git")
         .args(["symbolic-ref", "refs/remotes/origin/HEAD"])
         .output()
         .context("Failed to run git symbolic-ref")?;
 
-    if !output.status.success() {
-        anyhow::bail!("Could not determine default branch");
+    if output.status.success() {
+        let stdout = String::from_utf8(output.stdout)?;
+        if let Some(branch) = stdout
+            .trim()
+            .strip_prefix("refs/remotes/origin/")
+        {
+            return Ok(branch.to_string());
+        }
     }
 
-    let stdout = String::from_utf8(output.stdout)?;
-    let branch = stdout
-        .trim()
-        .strip_prefix("refs/remotes/origin/")
-        .ok_or_else(|| anyhow::anyhow!("Invalid git output"))?
-        .to_string();
+    let output = Command::new("git")
+        .args(["remote", "show", "origin"])
+        .output()
+        .context("Failed to run git remote show")?;
 
-    Ok(branch)
+    if output.status.success() {
+        let stdout = String::from_utf8(output.stdout)?;
+        for line in stdout.lines() {
+            if line.trim().starts_with("HEAD branch:") {
+                if let Some(branch) = line.trim().strip_prefix("HEAD branch:") {
+                    return Ok(branch.trim().to_string());
+                }
+            }
+        }
+    }
+
+    anyhow::bail!("Could not determine default branch")
 }
 
 // Helper function for testing branch parsing
