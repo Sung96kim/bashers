@@ -86,6 +86,19 @@ fn test_update_package_dry_run() {
 }
 
 #[test]
+fn test_update_package_auto_select() {
+    let output = Command::new("cargo")
+        .args(["run", "--", "update", "clap", "-y"])
+        .output()
+        .expect("Failed to run bashers update clap -y");
+
+    // Should succeed even if multiple matches (auto-selects first)
+    assert!(output.status.success());
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    assert!(stdout.contains("clap"));
+}
+
+#[test]
 fn test_setup_frozen_dry_run() {
     let output = Command::new("cargo")
         .args(["run", "--", "setup", "--frozen", "--dry-run"])

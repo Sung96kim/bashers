@@ -2,13 +2,17 @@ use crate::utils::{colors, packages, project, spinner};
 use anyhow::{Context, Result};
 use std::process::Command;
 
-pub fn run(package: Option<&str>, dry_run: bool) -> Result<()> {
+pub fn run(package: Option<&str>, dry_run: bool, auto_select: bool) -> Result<()> {
     let project_type = project::detect()?.context("No uv/poetry/cargo project found")?;
 
     if let Some(pkg_pattern) = package {
         let all_packages = packages::list(project_type)?;
         let matches = packages::fuzzy_match(&all_packages, pkg_pattern)?;
-        let selected = packages::select_one(matches)?;
+        let selected = if dry_run || auto_select {
+            packages::select_one_with_auto_select(matches, true)?
+        } else {
+            packages::select_one(matches)?
+        };
 
         colors::print_update(&selected);
 

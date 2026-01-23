@@ -1,6 +1,5 @@
 use crate::utils::project::ProjectType;
 use anyhow::{Context, Result};
-use std::io::Write;
 use std::process::Command;
 
 pub fn list(project_type: ProjectType) -> Result<Vec<String>> {
@@ -119,45 +118,55 @@ pub fn select_one(matches: Vec<String>) -> Result<String> {
         return Ok(matches[0].clone());
     }
 
-    if which::which("fzf").is_ok()
-        && atty::is(atty::Stream::Stdin) {
-            return select_with_fzf(&matches);
-        }
+    if atty::is(atty::Stream::Stdin) {
+        return select_with_inquire(&matches);
+    }
 
     eprintln!("Multiple packages found:");
     for pkg in &matches {
         eprintln!("  {}", pkg);
     }
-    eprintln!("Install fzf for fuzzy selection");
+    eprintln!("Non-interactive terminal - cannot select");
+    anyhow::bail!("Multiple matches found - interactive selection required");
+}
+
+pub fn select_one_with_auto_select(matches: Vec<String>, auto_select: bool) -> Result<String> {
+    if matches.is_empty() {
+        anyhow::bail!("No packages found");
+    }
+
+    if matches.len() == 1 {
+        return Ok(matches[0].clone());
+    }
+
+    if auto_select {
+        eprintln!("Multiple packages found, selecting first match:");
+        for pkg in &matches {
+            eprintln!("  {}", pkg);
+        }
+        eprintln!("Selected: {}", matches[0]);
+        return Ok(matches[0].clone());
+    }
+
+    if atty::is(atty::Stream::Stdin) {
+        return select_with_inquire(&matches);
+    }
+
+    eprintln!("Multiple packages found:");
+    for pkg in &matches {
+        eprintln!("  {}", pkg);
+    }
+    eprintln!("Non-interactive terminal - cannot select");
     anyhow::bail!("Multiple matches found");
 }
 
-fn select_with_fzf(matches: &[String]) -> Result<String> {
-    use std::process::{Command, Stdio};
+fn select_with_inquire(matches: &[String]) -> Result<String> {
+    use inquire::Select;
 
-    let mut child = Command::new("fzf")
-        .arg("--prompt=Package> ")
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .spawn()
-        .context("Failed to spawn fzf")?;
-
-    if let Some(stdin) = child.stdin.as_mut() {
-        for pkg in matches {
-            writeln!(stdin, "{}", pkg)?;
-        }
-    }
-
-    let output = child.wait_with_output()?;
-    if !output.status.success() {
-        anyhow::bail!("fzf selection cancelled");
-    }
-
-    let selected = String::from_utf8(output.stdout)?.trim().to_string();
-
-    if selected.is_empty() {
-        anyhow::bail!("No package selected");
-    }
+    let selected = Select::new("Select a package:", matches.to_vec())
+        .with_page_size(10)
+        .prompt()
+        .context("Failed to select package")?;
 
     Ok(selected)
 }
@@ -269,33 +278,58 @@ mod tests {
 
     #[test]
     fn test_select_one_single_match() {
+        // Single match should always succeed
         let matches = vec!["clap".to_string()];
-        let selected = select_one(matches).unwrap();
-        assert_eq!(selected, "clap");
+        let result = select_one(matches.clone());
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), "clap");
+        
+        let result2 = select_one_with_auto_select(matches, false);
+        assert!(result2.is_ok());
+        assert_eq!(result2.unwrap(), "clap");
     }
 
     #[test]
     fn test_select_one_no_matches() {
+        // Empty matches should fail
         let matches = vec![];
-        let result = select_one(matches);
+        let result = select_one(matches.clone());
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("No packages found"));
+        assert!(result.unwrap_err().to_string().contains("No packages found"));
+        
+        let result2 = select_one_with_auto_select(matches, true);
+        assert!(result2.is_err());
     }
 
     #[test]
-    fn test_select_one_multiple_matches_no_fzf() {
-        // This will fail because fzf is not available in test environment
-        // or stdin is not a TTY
+    fn test_select_one_multiple_matches_non_interactive() {
+        // When stdin is not a TTY with multiple matches,
+        // select_one should fail (non-interactive)
         let matches = vec!["clap".to_string(), "anyhow".to_string()];
         let result = select_one(matches);
-        // Should error with "Multiple matches found"
         assert!(result.is_err());
         let err_msg = result.unwrap_err().to_string();
-        assert!(err_msg.contains("Multiple matches found") || err_msg.contains("fzf"));
+        assert!(err_msg.contains("Multiple matches found"));
     }
+
+    #[test]
+    fn test_select_one_with_auto_select() {
+        // When auto_select is true, it should select the first match
+        let matches = vec!["clap".to_string(), "anyhow".to_string()];
+        let result = select_one_with_auto_select(matches, true);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), "clap");
+    }
+
+    #[test]
+    fn test_select_one_with_auto_select_false() {
+        // When auto_select is false and non-interactive, should fail
+        let matches = vec!["clap".to_string(), "anyhow".to_string()];
+        let result = select_one_with_auto_select(matches, false);
+        // In non-interactive environment, this should fail
+        assert!(result.is_err());
+    }
+
 
     #[test]
     fn test_parse_cargo_tree_output() {

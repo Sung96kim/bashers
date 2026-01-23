@@ -6,8 +6,8 @@ fn main() -> Result<()> {
     let app = BashersApp::parse();
 
     match app.command {
-        Some(bashers::cli::Commands::Update { package, dry_run }) => {
-            bashers::commands::update::run(package.as_deref(), dry_run)?;
+        Some(bashers::cli::Commands::Update { package, dry_run, auto_select }) => {
+            bashers::commands::update::run(package.as_deref(), dry_run, auto_select)?;
         }
         Some(bashers::cli::Commands::Setup {
             frozen,

@@ -17,6 +17,9 @@ pub enum Commands {
         /// Print commands without executing
         #[arg(long)]
         dry_run: bool,
+        /// Run command in non-interactive mode - will auto select the closest matching library
+        #[arg(short = 'y')]
+        auto_select: bool,
     },
     /// Install project dependencies
     Setup {
