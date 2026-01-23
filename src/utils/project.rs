@@ -75,6 +75,10 @@ mod tests {
     use super::*;
     use std::fs;
     use std::path::Path;
+    use std::sync::Mutex;
+
+    // Mutex to serialize tests that change directories
+    static DIR_CHANGE_MUTEX: Mutex<()> = Mutex::new(());
 
     #[test]
     fn test_project_type_methods() {
@@ -93,10 +97,12 @@ mod tests {
 
     #[test]
     fn test_has_project_section() {
+        let _guard = DIR_CHANGE_MUTEX.lock().expect("Failed to acquire mutex lock");
+        
         use std::time::{SystemTime, UNIX_EPOCH};
         let timestamp = SystemTime::now()
             .duration_since(UNIX_EPOCH)
-            .unwrap()
+            .expect("SystemTime before UNIX_EPOCH")
             .as_nanos();
         let test_dir_name = format!("test_project_detection_{}", timestamp);
         let test_dir = Path::new(&test_dir_name);
@@ -105,13 +111,13 @@ mod tests {
         if test_dir.exists() {
             fs::remove_dir_all(test_dir).ok();
         }
-        fs::create_dir_all(test_dir).unwrap();
+        fs::create_dir_all(test_dir).expect("Failed to create test directory");
 
         // Test with [project] section
         let pyproject_content = "[project]\nname = \"test\"\nversion = \"0.1.0\"";
-        fs::write(test_dir.join("pyproject.toml"), pyproject_content).unwrap();
+        fs::write(test_dir.join("pyproject.toml"), pyproject_content).expect("Failed to write pyproject.toml");
 
-        let original_dir = std::env::current_dir().unwrap();
+        let original_dir = std::env::current_dir().expect("Failed to get current directory");
         
         // Ensure we can change to the test directory
         assert!(std::env::set_current_dir(test_dir).is_ok(), "Failed to change to test directory");
@@ -129,100 +135,110 @@ mod tests {
 
     #[test]
     fn test_has_project_section_no_file() {
+        let _guard = DIR_CHANGE_MUTEX.lock().expect("Failed to acquire mutex lock");
+        
         let test_dir = Path::new("test_no_pyproject");
         if test_dir.exists() {
             fs::remove_dir_all(test_dir).ok();
         }
-        fs::create_dir_all(test_dir).unwrap();
+        fs::create_dir_all(test_dir).expect("Failed to create test directory");
 
-        let original_dir = std::env::current_dir().unwrap();
-        std::env::set_current_dir(test_dir).unwrap();
+        let original_dir = std::env::current_dir().expect("Failed to get current directory");
+        std::env::set_current_dir(test_dir).expect("Failed to change to test directory");
 
         let result = has_project_section();
         assert!(!result);
 
-        std::env::set_current_dir(original_dir).unwrap();
+        std::env::set_current_dir(original_dir).expect("Failed to restore original directory");
         fs::remove_dir_all(test_dir).ok();
     }
 
     #[test]
     fn test_has_project_section_no_project_section() {
+        let _guard = DIR_CHANGE_MUTEX.lock().expect("Failed to acquire mutex lock");
+        
         let test_dir = Path::new("test_no_project_section");
         if test_dir.exists() {
             fs::remove_dir_all(test_dir).ok();
         }
-        fs::create_dir_all(test_dir).unwrap();
+        fs::create_dir_all(test_dir).expect("Failed to create test directory");
 
         let pyproject_content = "[tool.poetry]\nname = \"test\"";
-        fs::write(test_dir.join("pyproject.toml"), pyproject_content).unwrap();
+        fs::write(test_dir.join("pyproject.toml"), pyproject_content).expect("Failed to write pyproject.toml");
 
-        let original_dir = std::env::current_dir().unwrap();
-        std::env::set_current_dir(test_dir).unwrap();
+        let original_dir = std::env::current_dir().expect("Failed to get current directory");
+        std::env::set_current_dir(test_dir).expect("Failed to change to test directory");
 
         let result = has_project_section();
         assert!(!result);
 
-        std::env::set_current_dir(original_dir).unwrap();
+        std::env::set_current_dir(original_dir).expect("Failed to restore original directory");
         fs::remove_dir_all(test_dir).ok();
     }
 
     #[test]
     fn test_has_poetry_section() {
+        let _guard = DIR_CHANGE_MUTEX.lock().expect("Failed to acquire mutex lock");
+        
         let test_dir = Path::new("test_poetry_detection");
         if test_dir.exists() {
             fs::remove_dir_all(test_dir).ok();
         }
-        fs::create_dir_all(test_dir).unwrap();
+        fs::create_dir_all(test_dir).expect("Failed to create test directory");
 
         let pyproject_content = "[tool.poetry]\nname = \"test\"\nversion = \"0.1.0\"";
-        fs::write(test_dir.join("pyproject.toml"), pyproject_content).unwrap();
+        fs::write(test_dir.join("pyproject.toml"), pyproject_content).expect("Failed to write pyproject.toml");
 
-        let original_dir = std::env::current_dir().unwrap();
-        std::env::set_current_dir(test_dir).unwrap();
+        let original_dir = std::env::current_dir().expect("Failed to get current directory");
+        std::env::set_current_dir(test_dir).expect("Failed to change to test directory");
 
         let result = has_poetry_section();
         assert!(result);
 
-        std::env::set_current_dir(original_dir).unwrap();
+        std::env::set_current_dir(original_dir).expect("Failed to restore original directory");
         fs::remove_dir_all(test_dir).ok();
     }
 
     #[test]
     fn test_has_poetry_section_no_file() {
+        let _guard = DIR_CHANGE_MUTEX.lock().expect("Failed to acquire mutex lock");
+        
         let test_dir = Path::new("test_no_poetry_file");
         if test_dir.exists() {
             fs::remove_dir_all(test_dir).ok();
         }
-        fs::create_dir_all(test_dir).unwrap();
+        fs::create_dir_all(test_dir).expect("Failed to create test directory");
 
-        let original_dir = std::env::current_dir().unwrap();
-        std::env::set_current_dir(test_dir).unwrap();
+        let original_dir = std::env::current_dir().expect("Failed to get current directory");
+        std::env::set_current_dir(test_dir).expect("Failed to change to test directory");
 
         let result = has_poetry_section();
         assert!(!result);
 
-        std::env::set_current_dir(original_dir).unwrap();
+        std::env::set_current_dir(original_dir).expect("Failed to restore original directory");
         fs::remove_dir_all(test_dir).ok();
     }
 
     #[test]
     fn test_has_poetry_section_no_poetry_section() {
+        let _guard = DIR_CHANGE_MUTEX.lock().expect("Failed to acquire mutex lock");
+        
         let test_dir = Path::new("test_no_poetry_section");
         if test_dir.exists() {
             fs::remove_dir_all(test_dir).ok();
         }
-        fs::create_dir_all(test_dir).unwrap();
+        fs::create_dir_all(test_dir).expect("Failed to create test directory");
 
         let pyproject_content = "[project]\nname = \"test\"";
-        fs::write(test_dir.join("pyproject.toml"), pyproject_content).unwrap();
+        fs::write(test_dir.join("pyproject.toml"), pyproject_content).expect("Failed to write pyproject.toml");
 
-        let original_dir = std::env::current_dir().unwrap();
-        std::env::set_current_dir(test_dir).unwrap();
+        let original_dir = std::env::current_dir().expect("Failed to get current directory");
+        std::env::set_current_dir(test_dir).expect("Failed to change to test directory");
 
         let result = has_poetry_section();
         assert!(!result);
 
-        std::env::set_current_dir(original_dir).unwrap();
+        std::env::set_current_dir(original_dir).expect("Failed to restore original directory");
         fs::remove_dir_all(test_dir).ok();
     }
 
