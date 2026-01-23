@@ -1,0 +1,15 @@
+[workspace]
+# Release-plz configuration
+# See: https://release-plz.dev/
+
+[changelog]
+# Generate changelog from conventional commits
+enabled = true
+
+[release]
+# Create GitHub release when tag is pushed
+enabled = true
+
+[git]
+# Conventional commit parsing
+conventional_commits = true
