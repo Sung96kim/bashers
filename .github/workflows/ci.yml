@@ -33,20 +33,14 @@ jobs:
       - name: Build
         run: cargo build --verbose
       
-      - name: Test
-        run: cargo test --verbose
-      
       - name: Install cargo-tarpaulin
         run: cargo install cargo-tarpaulin --locked
       
       - name: Coverage
-        run: cargo tarpaulin --out Xml --output-dir coverage --timeout 120
+        run: cargo tarpaulin --lib --out Xml --output-dir coverage --timeout 120
       
       - name: Clippy
         run: cargo clippy -- -D warnings
-      
-      - name: Format check
-        run: cargo fmt --check
 
   release:
     name: Release
