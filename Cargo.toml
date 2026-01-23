@@ -1,0 +1,22 @@
+[package]
+name = "bashers"
+version = "0.4.9"
+edition = "2021"
+authors = ["Sung Kim"]
+description = "Installable cli helpers"
+license = "MIT"
+readme = "README.md"
+
+[[bin]]
+name = "bashers"
+path = "src/main.rs"
+
+[dependencies]
+clap = { version = "4.5", features = ["derive"] }
+anyhow = "1.0"
+which = "6.0"
+fuzzy-matcher = "0.3"
+termcolor = "1.4"
+indicatif = "0.17"
+atty = "0.2"
+regex = "1.10"

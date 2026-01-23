@@ -1,0 +1,251 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, feat/* ]
+    tags:
+      - 'v*'
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    if: "!startsWith(github.ref, 'refs/tags/')"
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+      
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+      
+      - name: Check
+        run: cargo check
+      
+      - name: Build
+        run: cargo build --verbose
+      
+      - name: Test
+        run: cargo test --verbose
+      
+      - name: Install cargo-tarpaulin
+        run: cargo install cargo-tarpaulin --locked
+      
+      - name: Coverage
+        run: cargo tarpaulin --out Xml --output-dir coverage --timeout 120
+      
+      - name: Clippy
+        run: cargo clippy -- -D warnings
+      
+      - name: Format check
+        run: cargo fmt --check
+
+  release:
+    name: Release
+    runs-on: ubuntu-latest
+    needs: [test]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+      
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+      
+      - name: Install release-plz
+        run: cargo install release-plz --locked
+      
+      - name: Create release with release-plz
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        id: release_plz
+        run: |
+          # release-plz automatically handles:
+          # - Checking if release is needed
+          # - Updating version in Cargo.toml
+          # - Creating changelog
+          # - Creating tag
+          # - Pushing changes
+          # - Creating GitHub release
+          # If no release is needed, it will exit gracefully
+          if release-plz release; then
+            echo "RELEASE_CREATED=true" >> $GITHUB_OUTPUT
+            # Fetch the latest changes including the tag that release-plz just created
+            git fetch origin --tags
+            git fetch origin main
+            # Get the version from the latest tag (most reliable)
+            LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+            if [ -n "$LATEST_TAG" ]; then
+              VERSION=${LATEST_TAG#v}
+              echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+            else
+              # Fallback: try to get from Cargo.toml
+              git pull origin main || true
+              VERSION=$(grep -m1 '^version = ' Cargo.toml | sed 's/version = "\(.*\)"/\1/' || echo "")
+              if [ -n "$VERSION" ]; then
+                echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+              fi
+            fi
+          else
+            echo "RELEASE_CREATED=false" >> $GITHUB_OUTPUT
+            echo "No release needed"
+          fi
+      
+      - name: Fetch new tag and checkout
+        if: steps.release_plz.outputs.RELEASE_CREATED == 'true'
+        run: |
+          git fetch origin --tags
+          git fetch origin main
+          git checkout "v${{ steps.release_plz.outputs.VERSION }}" || git checkout main
+      
+      - name: Build for Linux x86_64
+        if: steps.release_plz.outputs.RELEASE_CREATED == 'true'
+        run: cargo build --release
+      
+      - name: Create release archive Linux x86_64
+        if: steps.release_plz.outputs.RELEASE_CREATED == 'true'
+        run: |
+          chmod +x target/release/bashers
+          tar czf bashers-linux-x86_64.tar.gz -C target/release bashers
+      
+      - name: Prepare install script
+        if: steps.release_plz.outputs.RELEASE_CREATED == 'true'
+        run: |
+          sed -i "s|yourusername/bashers|${{ github.repository }}|g" install.sh
+          chmod +x install.sh
+      
+      - name: Attach assets to GitHub Release
+        if: steps.release_plz.outputs.RELEASE_CREATED == 'true'
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            bashers-linux-x86_64.tar.gz
+            install.sh
+          tag_name: v${{ steps.release_plz.outputs.VERSION }}
+
+  release-tag:
+    name: Release from Tag
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v') && github.event_name == 'push'
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+      
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+      
+      - name: Get version from tag
+        id: get_version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+      
+      - name: Check if release already exists
+        id: check_release
+        run: |
+          TAG_NAME="v${{ steps.get_version.outputs.VERSION }}"
+          RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" \
+            -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Accept: application/vnd.github.v3+json" \
+            "https://api.github.com/repos/${{ github.repository }}/releases/tags/${TAG_NAME}")
+          if [ "$RESPONSE" = "200" ]; then
+            echo "RELEASE_EXISTS=true" >> $GITHUB_OUTPUT
+          else
+            echo "RELEASE_EXISTS=false" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Build for Linux x86_64
+        if: steps.check_release.outputs.RELEASE_EXISTS == 'false'
+        run: cargo build --release
+      
+      - name: Create release archive Linux x86_64
+        if: steps.check_release.outputs.RELEASE_EXISTS == 'false'
+        run: |
+          chmod +x target/release/bashers
+          tar czf bashers-linux-x86_64.tar.gz -C target/release bashers
+      
+      - name: Prepare install script
+        if: steps.check_release.outputs.RELEASE_EXISTS == 'false'
+        run: |
+          sed -i "s|yourusername/bashers|${{ github.repository }}|g" install.sh
+          chmod +x install.sh
+      
+      - name: Create GitHub Release
+        if: steps.check_release.outputs.RELEASE_EXISTS == 'false'
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            bashers-linux-x86_64.tar.gz
+            install.sh
+          tag_name: v${{ steps.get_version.outputs.VERSION }}
+          name: v${{ steps.get_version.outputs.VERSION }}
+          body: |
+            Release v${{ steps.get_version.outputs.VERSION }}
+            
+            ## Installation
+            
+            ### Quick Install (Recommended)
+            ```bash
+            curl -LsSf https://raw.githubusercontent.com/${{ github.repository }}/main/install.sh | sh
+            ```
+            
+            ### From crates.io
+            ```bash
+            cargo install bashers
+            ```
+            
+            ### Manual Installation
+            ```bash
+            tar xzf bashers-linux-x86_64.tar.gz
+            sudo mv bashers /usr/local/bin/
+            ```
+            
+            ### From Source
+            ```bash
+            cargo install --git https://github.com/${{ github.repository }}.git --tag v${{ steps.get_version.outputs.VERSION }}
+            ```
