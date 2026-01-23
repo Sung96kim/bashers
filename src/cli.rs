@@ -46,4 +46,16 @@ pub enum Commands {
     },
     /// Print version
     Version,
+    /// Self-management commands
+    #[command(name = "self")]
+    SelfCmd {
+        #[command(subcommand)]
+        command: SelfCommands,
+    },
+}
+
+#[derive(Subcommand)]
+pub enum SelfCommands {
+    /// Update bashers to the latest version
+    Update,
 }

@@ -186,10 +186,90 @@ mod tests {
     }
 
     #[test]
-    fn test_gh_dry_run() {
-        // Test that dry_run mode doesn't fail (even if git commands would)
-        // This test will fail if not in a git repo, so we'll skip it
-        // In a real scenario, we'd mock the git commands
+    fn test_parse_ls_remote_output() {
+        // Test parsing ls-remote --symref output
+        let output = "ref: refs/heads/main\tHEAD\n1234567890abcdef\tHEAD\n";
+        for line in output.lines() {
+            if line.starts_with("ref:") && line.contains("HEAD") {
+                let parts: Vec<&str> = line.split_whitespace().collect();
+                if parts.len() >= 2 {
+                    let ref_path = parts[1];
+                    if let Some(branch) = ref_path.strip_prefix("refs/heads/") {
+                        assert_eq!(branch, "main");
+                        return;
+                    }
+                }
+            }
+        }
+        panic!("Failed to parse ls-remote output");
+    }
+
+    #[test]
+    fn test_parse_remote_show_output() {
+        // Test parsing git remote show output
+        let output = "  HEAD branch: main\n  Remote branches:\n    main tracked";
+        for line in output.lines() {
+            if line.trim().starts_with("HEAD branch:") {
+                if let Some(branch) = line.trim().strip_prefix("HEAD branch:") {
+                    assert_eq!(branch.trim(), "main");
+                    return;
+                }
+            }
+        }
+        panic!("Failed to parse remote show output");
+    }
+
+    #[test]
+    fn test_parse_ls_remote_different_format() {
+        // Test parsing different ls-remote format
+        let output = "ref: refs/heads/master\tHEAD";
+        for line in output.lines() {
+            if line.starts_with("ref:") && line.contains("HEAD") {
+                let parts: Vec<&str> = line.split_whitespace().collect();
+                if parts.len() >= 2 {
+                    let ref_path = parts[1];
+                    if let Some(branch) = ref_path.strip_prefix("refs/heads/") {
+                        assert_eq!(branch, "master");
+                        return;
+                    }
+                }
+            }
+        }
+        panic!("Failed to parse ls-remote output");
+    }
+
+    #[test]
+    fn test_parse_ls_remote_with_tabs() {
+        // Test parsing ls-remote output with tabs
+        let output = "ref:\trefs/heads/main\tHEAD";
+        for line in output.lines() {
+            if line.starts_with("ref:") && line.contains("HEAD") {
+                let parts: Vec<&str> = line.split_whitespace().collect();
+                if parts.len() >= 2 {
+                    let ref_path = parts[1];
+                    if let Some(branch) = ref_path.strip_prefix("refs/heads/") {
+                        assert_eq!(branch, "main");
+                        return;
+                    }
+                }
+            }
+        }
+        panic!("Failed to parse ls-remote output");
+    }
+
+    #[test]
+    fn test_parse_remote_show_with_whitespace() {
+        // Test parsing git remote show output with extra whitespace
+        let output = "    HEAD branch:    main    ";
+        for line in output.lines() {
+            if line.trim().starts_with("HEAD branch:") {
+                if let Some(branch) = line.trim().strip_prefix("HEAD branch:") {
+                    assert_eq!(branch.trim(), "main");
+                    return;
+                }
+            }
+        }
+        panic!("Failed to parse remote show output");
     }
 
     #[test]

@@ -222,4 +222,41 @@ mod tests {
         let result = update_all(ProjectType::Cargo, true);
         assert!(result.is_ok());
     }
+
+    #[test]
+    fn test_update_package_with_special_chars() {
+        // Test package names with special characters
+        let result = update_package(ProjectType::Cargo, "test-package_v1.0", true);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_update_all_uv() {
+        let result = update_all(ProjectType::Uv, true);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_update_all_poetry() {
+        let result = update_all(ProjectType::Poetry, true);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_update_package_uv() {
+        let result = update_package(ProjectType::Uv, "test-package", true);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_update_package_poetry() {
+        let result = update_package(ProjectType::Poetry, "test-package", true);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_update_package_cargo() {
+        let result = update_package(ProjectType::Cargo, "test-package", true);
+        assert!(result.is_ok());
+    }
 }

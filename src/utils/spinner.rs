@@ -128,7 +128,7 @@ mod tests {
 
     #[test]
     fn test_create_spinner() {
-        let spinner = create_spinner();
+        let _spinner = create_spinner();
         // Just verify it doesn't panic
         assert!(true);
     }

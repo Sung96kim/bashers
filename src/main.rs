@@ -25,6 +25,13 @@ fn main() -> Result<()> {
         Some(bashers::cli::Commands::Version) => {
             println!("bashers {}", env!("CARGO_PKG_VERSION"));
         }
+        Some(bashers::cli::Commands::SelfCmd { command }) => {
+            match command {
+                bashers::cli::SelfCommands::Update => {
+                    bashers::commands::self_cmd::update::run()?;
+                }
+            }
+        }
         None => {
             bashers::commands::help::run()?;
         }

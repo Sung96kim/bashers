@@ -136,7 +136,7 @@ jobs:
       - name: Prepare install script
         if: steps.release_plz.outputs.RELEASE_CREATED == 'true'
         run: |
-          sed -i "s|yourusername/bashers|${{ github.repository }}|g" install.sh
+          sed -i "s|Sung96kim/bashers|${{ github.repository }}|g" install.sh
           chmod +x install.sh
       
       - name: Attach assets to GitHub Release
