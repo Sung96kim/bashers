@@ -26,9 +26,12 @@ pub fn run(dry_run: bool) -> Result<()> {
     colors.reset()?;
 
     if dry_run {
-        println!("gpo");
+        println!("git pull origin \"{}\"", default_branch);
     } else {
-        Command::new("gpo").status().context("Failed to run gpo")?;
+        Command::new("git")
+            .args(["pull", "origin", &default_branch])
+            .status()
+            .context("Failed to run git pull")?;
     }
 
     colors.green()?;
