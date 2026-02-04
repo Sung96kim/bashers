@@ -74,8 +74,6 @@ mod tests {
     #[test]
     fn test_colors_new() {
         let _colors = Colors::new();
-        // Just verify it doesn't panic
-        assert!(true);
     }
 
     #[test]
@@ -99,9 +97,7 @@ mod tests {
 
     #[test]
     fn test_print_update() {
-        // Should not panic
         print_update("test-package");
-        assert!(true);
     }
 
     #[test]

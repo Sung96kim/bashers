@@ -107,10 +107,8 @@ fn setup_cargo(frozen: bool, rm: bool, dry_run: bool) -> Result<()> {
         return Ok(());
     }
 
-    let status = spinner::run_with_spinner(
-        "Building with cargo...",
-        Command::new("cargo").args(&args),
-    )?;
+    let status =
+        spinner::run_with_spinner("Building with cargo...", Command::new("cargo").args(&args))?;
 
     if !status.success() {
         anyhow::bail!("cargo build failed");

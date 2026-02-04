@@ -44,6 +44,11 @@ pub enum Commands {
         #[arg(long)]
         dry_run: bool,
     },
+    /// Kubectl describe pod(s) and show Image lines (pod name regex-matched)
+    Kmg {
+        /// Pod name pattern (regex)
+        pattern: String,
+    },
     /// Print version
     Version,
     /// Self-management commands

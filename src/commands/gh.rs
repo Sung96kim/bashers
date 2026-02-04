@@ -78,10 +78,7 @@ fn get_default_branch() -> Result<String> {
 
     if output.status.success() {
         let stdout = String::from_utf8(output.stdout)?;
-        if let Some(branch) = stdout
-            .trim()
-            .strip_prefix("refs/remotes/origin/")
-        {
+        if let Some(branch) = stdout.trim().strip_prefix("refs/remotes/origin/") {
             return Ok(branch.to_string());
         }
     }

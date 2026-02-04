@@ -237,11 +237,11 @@ mod tests {
         // Test that patterns joined with | work correctly
         let patterns = vec!["clap".to_string(), "anyhow".to_string()];
         let pattern = join_patterns(&patterns);
-        
+
         // The pattern is escaped, so "clap|anyhow" becomes "clap\|anyhow" in regex
         // But we're testing the join function, not the actual matching
         assert_eq!(pattern, "clap|anyhow");
-        
+
         // Test individual matches
         assert!(regex_match_case_insensitive("clap v4.5", "clap"));
         assert!(regex_match_case_insensitive("anyhow v1.0", "anyhow"));
@@ -272,9 +272,11 @@ mod tests {
     #[test]
     fn test_regex_match_hyphens() {
         // Test matching package names with hyphens
-        assert!(regex_match_case_insensitive("test-package v1.0", "test-package"));
+        assert!(regex_match_case_insensitive(
+            "test-package v1.0",
+            "test-package"
+        ));
         assert!(regex_match_case_insensitive("test-package v1.0", "test"));
         assert!(regex_match_case_insensitive("test-package v1.0", "package"));
     }
-
 }

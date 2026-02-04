@@ -283,7 +283,7 @@ mod tests {
         let result = select_one(matches.clone());
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), "clap");
-        
+
         let result2 = select_one_with_auto_select(matches, false);
         assert!(result2.is_ok());
         assert_eq!(result2.unwrap(), "clap");
@@ -295,8 +295,11 @@ mod tests {
         let matches = vec![];
         let result = select_one(matches.clone());
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("No packages found"));
-        
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("No packages found"));
+
         let result2 = select_one_with_auto_select(matches, true);
         assert!(result2.is_err());
     }
@@ -329,7 +332,6 @@ mod tests {
         // In non-interactive environment, this should fail
         assert!(result.is_err());
     }
-
 
     #[test]
     fn test_parse_cargo_tree_output() {
@@ -413,13 +415,9 @@ mod tests {
 
     #[test]
     fn test_list_function_all_types() {
-        // Test that list function handles all project types
-        // These will fail if the tools aren't installed, but that's expected
         let _ = list(ProjectType::Uv);
         let _ = list(ProjectType::Poetry);
         let _ = list(ProjectType::Cargo);
-        // Just verify the function exists and can be called
-        assert!(true);
     }
 
     #[test]

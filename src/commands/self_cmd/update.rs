@@ -10,7 +10,7 @@ const CURRENT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 pub fn run() -> Result<()> {
     let mut colors = Colors::new();
-    
+
     let latest_version = if spinner::should_show_spinner() {
         let pb = spinner::create_spinner();
         pb.set_message("Checking for updates...".to_string());
@@ -25,7 +25,7 @@ pub fn run() -> Result<()> {
         colors.println("")?;
         get_latest_version()?
     };
-    
+
     if latest_version == CURRENT_VERSION {
         colors.green()?;
         colors.println(&format!("Already up to date (v{})", CURRENT_VERSION))?;
@@ -62,12 +62,11 @@ pub fn run() -> Result<()> {
         let pb = spinner::create_spinner();
         pb.set_message("Installing update...".to_string());
         pb.enable_steady_tick(std::time::Duration::from_millis(100));
-        
-        fs::rename(&temp_path, &binary_path)
-            .context("Failed to replace binary")?;
-        
+
+        fs::rename(&temp_path, &binary_path).context("Failed to replace binary")?;
+
         chmod_executable(&binary_path)?;
-        
+
         pb.finish_and_clear();
     } else {
         colors.green()?;
@@ -75,8 +74,7 @@ pub fn run() -> Result<()> {
         colors.reset()?;
         colors.println("")?;
 
-        fs::rename(&temp_path, &binary_path)
-            .context("Failed to replace binary")?;
+        fs::rename(&temp_path, &binary_path).context("Failed to replace binary")?;
 
         chmod_executable(&binary_path)?;
     }
@@ -94,7 +92,10 @@ fn get_latest_version() -> Result<String> {
             "-s",
             "-H",
             "Accept: application/vnd.github.v3+json",
-            &format!("https://api.github.com/repos/{}/releases/latest", GITHUB_REPO),
+            &format!(
+                "https://api.github.com/repos/{}/releases/latest",
+                GITHUB_REPO
+            ),
         ])
         .output()
         .context("Failed to fetch latest version from GitHub")?;
@@ -104,10 +105,9 @@ fn get_latest_version() -> Result<String> {
     }
 
     let response = String::from_utf8(output.stdout)?;
-    
-    let re = Regex::new(r#""tag_name"\s*:\s*"v?([^"]+)""#)
-        .context("Failed to create regex")?;
-    
+
+    let re = Regex::new(r#""tag_name"\s*:\s*"v?([^"]+)""#).context("Failed to create regex")?;
+
     let version = re
         .captures(&response)
         .and_then(|caps| caps.get(1))
@@ -157,8 +157,7 @@ fn download_binary(version: &str, output_path: &PathBuf) -> Result<()> {
         anyhow::bail!("Extracted binary not found");
     }
 
-    fs::copy(&extracted_binary, output_path)
-        .context("Failed to copy binary to target location")?;
+    fs::copy(&extracted_binary, output_path).context("Failed to copy binary to target location")?;
 
     fs::remove_file(&extracted_binary).ok();
 
@@ -166,8 +165,7 @@ fn download_binary(version: &str, output_path: &PathBuf) -> Result<()> {
 }
 
 fn get_binary_path() -> Result<PathBuf> {
-    let current_exe = std::env::current_exe()
-        .context("Failed to get current executable path")?;
+    let current_exe = std::env::current_exe().context("Failed to get current executable path")?;
 
     Ok(current_exe)
 }

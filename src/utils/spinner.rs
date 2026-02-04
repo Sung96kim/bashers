@@ -129,16 +129,11 @@ mod tests {
     #[test]
     fn test_create_spinner() {
         let _spinner = create_spinner();
-        // Just verify it doesn't panic
-        assert!(true);
     }
 
     #[test]
     fn test_should_show_spinner() {
-        // Test that function exists and returns a boolean
-        let result = should_show_spinner();
-        // Result depends on environment, but should be a boolean
-        assert!(result == true || result == false);
+        let _: bool = should_show_spinner();
     }
 
     #[test]
@@ -151,16 +146,12 @@ mod tests {
     #[test]
     fn test_spinner_without_no_spinner_env() {
         std::env::remove_var("NO_SPINNER");
-        // Result depends on whether stdout is a TTY
-        let result = should_show_spinner();
-        assert!(result == true || result == false);
+        let _: bool = should_show_spinner();
     }
 
     #[test]
     fn test_spinner_style() {
         let spinner = create_spinner();
         spinner.set_message("test");
-        // Verify spinner can be configured
-        assert!(true);
     }
 }
