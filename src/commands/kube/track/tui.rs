@@ -127,6 +127,20 @@ impl TuiState {
         self.panes.push(pane);
     }
 
+    fn sort_panes(&mut self) {
+        let selected_key = self
+            .panes
+            .get(self.selected)
+            .map(|p| p.key.clone());
+        self.panes.sort_by(|a, b| a.key.cmp(&b.key));
+        self.rebuild_index();
+        if let Some(key) = selected_key {
+            if let Some(&idx) = self.pane_index.get(&key) {
+                self.selected = idx;
+            }
+        }
+    }
+
     fn rebuild_index(&mut self) {
         self.pane_index = self
             .panes
@@ -225,6 +239,7 @@ fn run_tui(
             shared.tx.clone(),
         );
     }
+    state.sort_panes();
 
     {
         let poll_running = shared.running.clone();
@@ -287,6 +302,7 @@ fn run_tui(
                         let cidx = color_counter.fetch_add(1, Ordering::SeqCst);
                         let color = TUI_COLORS[cidx % TUI_COLORS.len()];
                         state.add_pane(PodPane::new(key, color, alive));
+                        state.sort_panes();
                     }
                 }
             }
