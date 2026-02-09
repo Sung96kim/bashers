@@ -79,6 +79,53 @@ impl PodPane {
     }
 }
 
+struct TuiState {
+    selected: usize,
+    expanded: bool,
+    input_mode: bool,
+    input_buffer: String,
+    panes: Vec<PodPane>,
+    pane_index: HashMap<String, usize>,
+    pane_rects: Vec<(usize, Rect)>,
+}
+
+impl TuiState {
+    fn new() -> Self {
+        Self {
+            selected: 0,
+            expanded: false,
+            input_mode: false,
+            input_buffer: String::new(),
+            panes: Vec::new(),
+            pane_index: HashMap::new(),
+            pane_rects: vec![],
+        }
+    }
+
+    fn add_pane(&mut self, pane: PodPane) {
+        self.pane_index.insert(pane.key.clone(), self.panes.len());
+        self.panes.push(pane);
+    }
+
+    fn rebuild_index(&mut self) {
+        self.pane_index = self
+            .panes
+            .iter()
+            .enumerate()
+            .map(|(i, p)| (p.key.clone(), i))
+            .collect();
+    }
+}
+
+struct SharedState {
+    err_only: bool,
+    running: Arc<AtomicBool>,
+    active_pods: Arc<Mutex<HashSet<String>>>,
+    closed_pods: Arc<Mutex<HashSet<String>>>,
+    regexes: Arc<Mutex<Vec<Regex>>>,
+    tx: mpsc::Sender<TrackEvent>,
+}
+
 pub fn run(pods: Vec<PodInfo>, regexes: Vec<Regex>, err_only: bool) -> Result<()> {
     let mut terminal = ratatui::init();
     std::io::stdout().execute(EnableMouseCapture)?;
@@ -94,46 +141,43 @@ fn run_tui(
     initial_regexes: Vec<Regex>,
     err_only: bool,
 ) -> Result<()> {
-    let running = Arc::new(AtomicBool::new(true));
     let (tx, rx) = mpsc::channel::<TrackEvent>();
-    let active_pods: Arc<Mutex<HashSet<String>>> = Arc::new(Mutex::new(HashSet::new()));
-    let closed_pods: Arc<Mutex<HashSet<String>>> = Arc::new(Mutex::new(HashSet::new()));
-    let regexes: Arc<Mutex<Vec<Regex>>> = Arc::new(Mutex::new(initial_regexes));
+    let shared = SharedState {
+        err_only,
+        running: Arc::new(AtomicBool::new(true)),
+        active_pods: Arc::new(Mutex::new(HashSet::new())),
+        closed_pods: Arc::new(Mutex::new(HashSet::new())),
+        regexes: Arc::new(Mutex::new(initial_regexes)),
+        tx,
+    };
     let color_counter = Arc::new(AtomicUsize::new(0));
 
-    let mut panes: Vec<PodPane> = Vec::new();
-    let mut pane_index: HashMap<String, usize> = HashMap::new();
-    let mut selected: usize = 0;
-    let mut expanded = false;
-    let mut input_mode = false;
-    let mut input_buffer = String::new();
-    let mut pane_rects: Vec<(usize, Rect)> = vec![];
+    let mut state = TuiState::new();
 
     for pod in &pods {
         let key = pod.key();
         let cidx = color_counter.fetch_add(1, Ordering::SeqCst);
         let color = TUI_COLORS[cidx % TUI_COLORS.len()];
         let alive = Arc::new(AtomicBool::new(true));
-        pane_index.insert(key.clone(), panes.len());
-        panes.push(PodPane::new(key.clone(), color, alive.clone()));
-        active_pods.lock().unwrap().insert(key);
+        state.add_pane(PodPane::new(key.clone(), color, alive.clone()));
+        shared.active_pods.lock().unwrap().insert(key);
         spawn_tui_log_follower(
             &pod.namespace,
             &pod.name,
-            err_only,
-            running.clone(),
+            shared.err_only,
+            shared.running.clone(),
             alive,
-            active_pods.clone(),
-            tx.clone(),
+            shared.active_pods.clone(),
+            shared.tx.clone(),
         );
     }
 
     {
-        let poll_running = running.clone();
-        let poll_tx = tx.clone();
-        let poll_active = active_pods.clone();
-        let poll_closed = closed_pods.clone();
-        let poll_regexes = regexes.clone();
+        let poll_running = shared.running.clone();
+        let poll_tx = shared.tx.clone();
+        let poll_active = shared.active_pods.clone();
+        let poll_closed = shared.closed_pods.clone();
+        let poll_regexes = shared.regexes.clone();
         thread::spawn(move || {
             while poll_running.load(Ordering::SeqCst) {
                 thread::sleep(Duration::from_secs(5));
@@ -179,17 +223,16 @@ fn run_tui(
         while let Ok(evt) = rx.try_recv() {
             match evt {
                 TrackEvent::LogLine { pod_key, text } => {
-                    if let Some(&idx) = pane_index.get(&pod_key) {
-                        panes[idx].push_line(text);
+                    if let Some(&idx) = state.pane_index.get(&pod_key) {
+                        state.panes[idx].push_line(text);
                     }
                 }
                 TrackEvent::NewPod { pod, alive } => {
                     let key = pod.key();
-                    if !pane_index.contains_key(&key) {
+                    if !state.pane_index.contains_key(&key) {
                         let cidx = color_counter.fetch_add(1, Ordering::SeqCst);
                         let color = TUI_COLORS[cidx % TUI_COLORS.len()];
-                        pane_index.insert(key.clone(), panes.len());
-                        panes.push(PodPane::new(key, color, alive));
+                        state.add_pane(PodPane::new(key, color, alive));
                     }
                 }
             }
@@ -199,10 +242,10 @@ fn run_tui(
         {
             let main_layout =
                 Layout::vertical([Constraint::Min(0), Constraint::Length(1)]).split(term_size.into());
-            let visible_indices: Vec<usize> = if expanded {
-                vec![selected]
+            let visible_indices: Vec<usize> = if state.expanded {
+                vec![state.selected]
             } else {
-                (0..panes.len()).collect()
+                (0..state.panes.len()).collect()
             };
             let vis_count = visible_indices.len().max(1) as u32;
             let constraints: Vec<Constraint> = visible_indices
@@ -210,7 +253,7 @@ fn run_tui(
                 .map(|_| Constraint::Ratio(1, vis_count))
                 .collect();
             let chunks = Layout::vertical(constraints).split(main_layout[0]);
-            pane_rects = visible_indices
+            state.pane_rects = visible_indices
                 .iter()
                 .zip(chunks.iter())
                 .map(|(&i, r)| (i, *r))
@@ -221,15 +264,15 @@ fn run_tui(
             let main_chunks = Layout::vertical([Constraint::Min(0), Constraint::Length(1)])
                 .split(frame.area());
 
-            if !panes.is_empty() {
-                let visible: Vec<(usize, &PodPane)> = if expanded {
-                    panes
+            if !state.panes.is_empty() {
+                let visible: Vec<(usize, &PodPane)> = if state.expanded {
+                    state.panes
                         .iter()
                         .enumerate()
-                        .filter(|(i, _)| *i == selected)
+                        .filter(|(i, _)| *i == state.selected)
                         .collect()
                 } else {
-                    panes.iter().enumerate().collect()
+                    state.panes.iter().enumerate().collect()
                 };
 
                 let vis_count = visible.len() as u32;
@@ -240,7 +283,7 @@ fn run_tui(
                 let chunks = Layout::vertical(constraints).split(main_chunks[0]);
 
                 for (ci, (i, pane)) in visible.iter().enumerate() {
-                    let is_selected = *i == selected;
+                    let is_selected = *i == state.selected;
                     let border_style = if is_selected {
                         Style::default()
                             .fg(pane.color)
@@ -306,13 +349,13 @@ fn run_tui(
                 }
             }
 
-            let status_line = if input_mode {
+            let status_line = if state.input_mode {
                 Line::from(vec![
                     Span::styled(
                         " Pattern: ",
                         Style::default().add_modifier(Modifier::BOLD),
                     ),
-                    Span::raw(input_buffer.as_str()),
+                    Span::raw(state.input_buffer.as_str()),
                     Span::styled("\u{2588}", Style::default().fg(Color::White)),
                     Span::raw("  "),
                     Span::styled(
@@ -361,7 +404,7 @@ fn run_tui(
                             .add_modifier(Modifier::BOLD),
                     ),
                     Span::styled(
-                        if expanded { ": collapse  " } else { ": expand  " },
+                        if state.expanded { ": collapse  " } else { ": expand  " },
                         Style::default().fg(Color::White),
                     ),
                     Span::styled(
@@ -397,37 +440,23 @@ fn run_tui(
         if event::poll(Duration::from_millis(100))? {
             match event::read()? {
                 Event::Key(key_event) if key_event.kind == KeyEventKind::Press => {
-                    if input_mode {
-                        handle_input_mode(
-                            key_event.code,
-                            &mut input_mode,
-                            &mut input_buffer,
-                            err_only,
-                            &running,
-                            &active_pods,
-                            &closed_pods,
-                            &regexes,
-                            &tx,
-                        );
+                    if state.input_mode {
+                        handle_input_mode(key_event.code, &mut state, &shared);
                     } else {
                         let avail = term_size.height.saturating_sub(1);
-                        let pane_h = if panes.is_empty() {
+                        let pane_h = if state.panes.is_empty() {
                             avail
                         } else {
-                            avail / panes.len() as u16
+                            avail / state.panes.len() as u16
                         };
                         let page_size = pane_h.saturating_sub(2) as usize;
 
                         let should_quit = handle_normal_mode(
                             key_event.code,
                             key_event.modifiers,
-                            &mut selected,
-                            &mut input_mode,
-                            &mut expanded,
-                            &mut panes,
-                            &mut pane_index,
-                            &running,
-                            &closed_pods,
+                            &mut state,
+                            &shared.running,
+                            &shared.closed_pods,
                             page_size,
                         );
                         if should_quit {
@@ -435,13 +464,8 @@ fn run_tui(
                         }
                     }
                 }
-                Event::Mouse(mouse_event) if !input_mode => {
-                    handle_mouse_event(
-                        mouse_event,
-                        &mut selected,
-                        &mut panes,
-                        &pane_rects,
-                    );
+                Event::Mouse(mouse_event) if !state.input_mode => {
+                    handle_mouse_event(mouse_event, &mut state);
                 }
                 _ => {}
             }
@@ -451,16 +475,12 @@ fn run_tui(
     Ok(())
 }
 
-fn handle_mouse_event(
-    mouse: crossterm::event::MouseEvent,
-    selected: &mut usize,
-    panes: &mut Vec<PodPane>,
-    pane_rects: &[(usize, Rect)],
-) {
+fn handle_mouse_event(mouse: crossterm::event::MouseEvent, state: &mut TuiState) {
     let col = mouse.column;
     let row = mouse.row;
 
-    let hit = pane_rects
+    let hit = state
+        .pane_rects
         .iter()
         .find(|(_, rect)| {
             col >= rect.x
@@ -476,27 +496,27 @@ fn handle_mouse_event(
 
     match mouse.kind {
         MouseEventKind::ScrollUp => {
-            *selected = pane_idx;
-            if let Some(pane) = panes.get_mut(pane_idx) {
+            state.selected = pane_idx;
+            if let Some(pane) = state.panes.get_mut(pane_idx) {
                 let max = pane.lines.len().saturating_sub(1);
                 let current = pane.scroll_up.unwrap_or(0);
                 pane.scroll_up = Some(current.saturating_add(3).min(max));
             }
         }
         MouseEventKind::ScrollDown => {
-            *selected = pane_idx;
-            if let Some(pane) = panes.get_mut(pane_idx) {
+            state.selected = pane_idx;
+            if let Some(pane) = state.panes.get_mut(pane_idx) {
                 if let Some(up) = pane.scroll_up {
                     pane.scroll_up = if up <= 3 { None } else { Some(up - 3) };
                 }
             }
         }
         MouseEventKind::Down(MouseButton::Left) => {
-            *selected = pane_idx;
-            scroll_to_scrollbar_pos(col, row, &rect, panes.get_mut(pane_idx));
+            state.selected = pane_idx;
+            scroll_to_scrollbar_pos(col, row, &rect, state.panes.get_mut(pane_idx));
         }
         MouseEventKind::Drag(MouseButton::Left) => {
-            scroll_to_scrollbar_pos(col, row, &rect, panes.get_mut(pane_idx));
+            scroll_to_scrollbar_pos(col, row, &rect, state.panes.get_mut(pane_idx));
         }
         _ => {}
     }
@@ -521,37 +541,25 @@ fn scroll_to_scrollbar_pos(col: u16, row: u16, rect: &Rect, pane: Option<&mut Po
     }
 }
 
-fn handle_input_mode(
-    code: KeyCode,
-    input_mode: &mut bool,
-    input_buffer: &mut String,
-    err_only: bool,
-    running: &Arc<AtomicBool>,
-    active_pods: &Arc<Mutex<HashSet<String>>>,
-    closed_pods: &Arc<Mutex<HashSet<String>>>,
-    regexes: &Arc<Mutex<Vec<Regex>>>,
-    tx: &mpsc::Sender<TrackEvent>,
-) {
+fn handle_input_mode(code: KeyCode, state: &mut TuiState, shared: &SharedState) {
     match code {
         KeyCode::Enter => {
-            if !input_buffer.is_empty() {
-                let pattern = input_buffer.clone();
-                input_buffer.clear();
-                *input_mode = false;
-                add_pattern(
-                    &pattern, err_only, running, active_pods, closed_pods, regexes, tx,
-                );
+            if !state.input_buffer.is_empty() {
+                let pattern = state.input_buffer.clone();
+                state.input_buffer.clear();
+                state.input_mode = false;
+                add_pattern(&pattern, shared);
             }
         }
         KeyCode::Esc => {
-            input_buffer.clear();
-            *input_mode = false;
+            state.input_buffer.clear();
+            state.input_mode = false;
         }
         KeyCode::Backspace => {
-            input_buffer.pop();
+            state.input_buffer.pop();
         }
         KeyCode::Char(c) => {
-            input_buffer.push(c);
+            state.input_buffer.push(c);
         }
         _ => {}
     }
@@ -560,11 +568,7 @@ fn handle_input_mode(
 fn handle_normal_mode(
     code: KeyCode,
     modifiers: KeyModifiers,
-    selected: &mut usize,
-    input_mode: &mut bool,
-    expanded: &mut bool,
-    panes: &mut Vec<PodPane>,
-    pane_index: &mut HashMap<String, usize>,
+    state: &mut TuiState,
     running: &Arc<AtomicBool>,
     closed_pods: &Arc<Mutex<HashSet<String>>>,
     page_size: usize,
@@ -579,53 +583,56 @@ fn handle_normal_mode(
             return true;
         }
         KeyCode::Char('f') => {
-            *expanded = !*expanded;
+            state.expanded = !state.expanded;
         }
         KeyCode::Esc => {
-            if *expanded {
-                *expanded = false;
+            if state.expanded {
+                state.expanded = false;
             }
         }
         KeyCode::Tab | KeyCode::Char('j') => {
-            if !panes.is_empty() {
-                *selected = (*selected + 1) % panes.len();
+            if !state.panes.is_empty() {
+                state.selected = (state.selected + 1) % state.panes.len();
             }
         }
         KeyCode::BackTab | KeyCode::Char('k') => {
-            if !panes.is_empty() {
-                *selected = selected.checked_sub(1).unwrap_or(panes.len() - 1);
+            if !state.panes.is_empty() {
+                state.selected = state
+                    .selected
+                    .checked_sub(1)
+                    .unwrap_or(state.panes.len() - 1);
             }
         }
         KeyCode::Up => {
-            if let Some(pane) = panes.get_mut(*selected) {
+            if let Some(pane) = state.panes.get_mut(state.selected) {
                 let max = pane.lines.len().saturating_sub(1);
                 let current = pane.scroll_up.unwrap_or(0);
                 pane.scroll_up = Some(current.saturating_add(1).min(max));
             }
         }
         KeyCode::Down => {
-            if let Some(pane) = panes.get_mut(*selected) {
+            if let Some(pane) = state.panes.get_mut(state.selected) {
                 if let Some(up) = pane.scroll_up {
                     pane.scroll_up = if up <= 1 { None } else { Some(up - 1) };
                 }
             }
         }
         KeyCode::PageUp => {
-            if let Some(pane) = panes.get_mut(*selected) {
+            if let Some(pane) = state.panes.get_mut(state.selected) {
                 let max = pane.lines.len().saturating_sub(1);
                 let current = pane.scroll_up.unwrap_or(0);
                 pane.scroll_up = Some(current.saturating_add(page_size).min(max));
             }
         }
         KeyCode::PageDown => {
-            if let Some(pane) = panes.get_mut(*selected) {
+            if let Some(pane) = state.panes.get_mut(state.selected) {
                 if let Some(up) = pane.scroll_up {
                     pane.scroll_up = if up <= page_size { None } else { Some(up - page_size) };
                 }
             }
         }
         KeyCode::Home => {
-            if let Some(pane) = panes.get_mut(*selected) {
+            if let Some(pane) = state.panes.get_mut(state.selected) {
                 let max = pane.lines.len().saturating_sub(1);
                 if max > 0 {
                     pane.scroll_up = Some(max);
@@ -633,23 +640,23 @@ fn handle_normal_mode(
             }
         }
         KeyCode::End => {
-            if let Some(pane) = panes.get_mut(*selected) {
+            if let Some(pane) = state.panes.get_mut(state.selected) {
                 pane.scroll_up = None;
             }
         }
         KeyCode::Char('a') => {
-            *input_mode = true;
+            state.input_mode = true;
         }
         KeyCode::Char('d') => {
-            if !panes.is_empty() {
-                let removed = panes.remove(*selected);
+            if !state.panes.is_empty() {
+                let removed = state.panes.remove(state.selected);
                 removed.alive.store(false, Ordering::SeqCst);
                 closed_pods.lock().unwrap().insert(removed.key.clone());
-                *pane_index = rebuild_pane_index(panes);
-                if panes.is_empty() {
-                    *selected = 0;
+                state.rebuild_index();
+                if state.panes.is_empty() {
+                    state.selected = 0;
                 } else {
-                    *selected = (*selected).min(panes.len() - 1);
+                    state.selected = state.selected.min(state.panes.len() - 1);
                 }
             }
         }
@@ -658,22 +665,15 @@ fn handle_normal_mode(
     false
 }
 
-fn add_pattern(
-    pattern: &str,
-    err_only: bool,
-    running: &Arc<AtomicBool>,
-    active_pods: &Arc<Mutex<HashSet<String>>>,
-    closed_pods: &Arc<Mutex<HashSet<String>>>,
-    regexes: &Arc<Mutex<Vec<Regex>>>,
-    tx: &mpsc::Sender<TrackEvent>,
-) {
+fn add_pattern(pattern: &str, shared: &SharedState) {
     let new_regex = pod_pattern_regex(pattern);
-    regexes.lock().unwrap().push(new_regex.clone());
+    shared.regexes.lock().unwrap().push(new_regex.clone());
 
-    let disc_running = running.clone();
-    let disc_active = active_pods.clone();
-    let disc_closed = closed_pods.clone();
-    let disc_tx = tx.clone();
+    let disc_running = shared.running.clone();
+    let disc_active = shared.active_pods.clone();
+    let disc_closed = shared.closed_pods.clone();
+    let disc_tx = shared.tx.clone();
+    let err_only = shared.err_only;
 
     thread::spawn(move || {
         if let Ok(pods) = find_matching_pods(&[new_regex]) {
@@ -707,14 +707,6 @@ fn add_pattern(
             }
         }
     });
-}
-
-fn rebuild_pane_index(panes: &[PodPane]) -> HashMap<String, usize> {
-    panes
-        .iter()
-        .enumerate()
-        .map(|(i, p)| (p.key.clone(), i))
-        .collect()
 }
 
 fn spawn_tui_log_follower(
@@ -876,58 +868,40 @@ mod tests {
         assert!(pane.is_following());
     }
 
-    #[test]
-    fn test_rebuild_pane_index() {
-        let panes = vec![
-            make_pane("ns/a", 0),
-            make_pane("ns/b", 0),
-            make_pane("ns/c", 0),
-        ];
-        let index = rebuild_pane_index(&panes);
-        assert_eq!(index.get("ns/a"), Some(&0));
-        assert_eq!(index.get("ns/b"), Some(&1));
-        assert_eq!(index.get("ns/c"), Some(&2));
-        assert_eq!(index.len(), 3);
+    fn make_state(keys: &[&str], lines_per_pane: usize) -> TuiState {
+        let mut state = TuiState::new();
+        for key in keys {
+            state.add_pane(make_pane(key, lines_per_pane));
+        }
+        state
+    }
+
+    fn press_key(state: &mut TuiState, code: KeyCode, running: &Arc<AtomicBool>, closed: &Arc<Mutex<HashSet<String>>>) -> bool {
+        handle_normal_mode(code, KeyModifiers::NONE, state, running, closed, 20)
     }
 
     #[test]
-    fn test_rebuild_pane_index_after_removal() {
-        let mut panes = vec![
-            make_pane("ns/a", 0),
-            make_pane("ns/b", 0),
-            make_pane("ns/c", 0),
-        ];
-        panes.remove(1);
-        let index = rebuild_pane_index(&panes);
-        assert_eq!(index.get("ns/a"), Some(&0));
-        assert_eq!(index.get("ns/c"), Some(&1));
-        assert_eq!(index.len(), 2);
+    fn test_tui_state_add_pane_and_rebuild() {
+        let mut state = make_state(&["ns/a", "ns/b", "ns/c"], 0);
+        assert_eq!(state.pane_index.get("ns/a"), Some(&0));
+        assert_eq!(state.pane_index.get("ns/b"), Some(&1));
+        assert_eq!(state.pane_index.get("ns/c"), Some(&2));
+        assert_eq!(state.pane_index.len(), 3);
+
+        state.panes.remove(1);
+        state.rebuild_index();
+        assert_eq!(state.pane_index.get("ns/a"), Some(&0));
+        assert_eq!(state.pane_index.get("ns/c"), Some(&1));
+        assert_eq!(state.pane_index.len(), 2);
     }
 
     #[test]
     fn test_handle_normal_mode_quit() {
         let running = Arc::new(AtomicBool::new(true));
         let closed = Arc::new(Mutex::new(HashSet::new()));
-        let mut selected = 0;
-        let mut input_mode = false;
-        let mut expanded = false;
-        let mut panes = vec![make_pane("ns/a", 10)];
-        let mut pane_index = rebuild_pane_index(&panes);
+        let mut state = make_state(&["ns/a"], 10);
 
-        let quit = handle_normal_mode(
-            KeyCode::Char('q'),
-            KeyModifiers::NONE,
-            &mut selected,
-            &mut input_mode,
-            &mut expanded,
-            &mut panes,
-            &mut pane_index,
-            &running,
-            &closed,
-            20,
-        );
-
-        assert!(quit);
+        assert!(press_key(&mut state, KeyCode::Char('q'), &running, &closed));
         assert!(!running.load(Ordering::SeqCst));
     }
 
@@ -935,26 +909,11 @@ mod tests {
     fn test_handle_normal_mode_tab_cycles() {
         let running = Arc::new(AtomicBool::new(true));
         let closed = Arc::new(Mutex::new(HashSet::new()));
-        let mut selected = 0;
-        let mut input_mode = false;
-        let mut expanded = false;
-        let mut panes = vec![make_pane("ns/a", 0), make_pane("ns/b", 0), make_pane("ns/c", 0)];
-        let mut pane_index = rebuild_pane_index(&panes);
+        let mut state = make_state(&["ns/a", "ns/b", "ns/c"], 0);
 
         for expected in [1, 2, 0] {
-            handle_normal_mode(
-                KeyCode::Tab,
-                KeyModifiers::NONE,
-                &mut selected,
-                &mut input_mode,
-                &mut expanded,
-                &mut panes,
-                &mut pane_index,
-                &running,
-                &closed,
-                20,
-            );
-            assert_eq!(selected, expected);
+            press_key(&mut state, KeyCode::Tab, &running, &closed);
+            assert_eq!(state.selected, expected);
         }
     }
 
@@ -962,267 +921,105 @@ mod tests {
     fn test_handle_normal_mode_expand_toggle() {
         let running = Arc::new(AtomicBool::new(true));
         let closed = Arc::new(Mutex::new(HashSet::new()));
-        let mut selected = 0;
-        let mut input_mode = false;
-        let mut expanded = false;
-        let mut panes = vec![make_pane("ns/a", 0)];
-        let mut pane_index = rebuild_pane_index(&panes);
+        let mut state = make_state(&["ns/a"], 0);
 
-        handle_normal_mode(
-            KeyCode::Char('f'),
-            KeyModifiers::NONE,
-            &mut selected,
-            &mut input_mode,
-            &mut expanded,
-            &mut panes,
-            &mut pane_index,
-            &running,
-            &closed,
-            20,
-        );
-        assert!(expanded);
-
-        handle_normal_mode(
-            KeyCode::Char('f'),
-            KeyModifiers::NONE,
-            &mut selected,
-            &mut input_mode,
-            &mut expanded,
-            &mut panes,
-            &mut pane_index,
-            &running,
-            &closed,
-            20,
-        );
-        assert!(!expanded);
+        press_key(&mut state, KeyCode::Char('f'), &running, &closed);
+        assert!(state.expanded);
+        press_key(&mut state, KeyCode::Char('f'), &running, &closed);
+        assert!(!state.expanded);
     }
 
     #[test]
     fn test_handle_normal_mode_esc_collapses() {
         let running = Arc::new(AtomicBool::new(true));
         let closed = Arc::new(Mutex::new(HashSet::new()));
-        let mut selected = 0;
-        let mut input_mode = false;
-        let mut expanded = true;
-        let mut panes = vec![make_pane("ns/a", 0)];
-        let mut pane_index = rebuild_pane_index(&panes);
+        let mut state = make_state(&["ns/a"], 0);
+        state.expanded = true;
 
-        handle_normal_mode(
-            KeyCode::Esc,
-            KeyModifiers::NONE,
-            &mut selected,
-            &mut input_mode,
-            &mut expanded,
-            &mut panes,
-            &mut pane_index,
-            &running,
-            &closed,
-            20,
-        );
-        assert!(!expanded);
+        press_key(&mut state, KeyCode::Esc, &running, &closed);
+        assert!(!state.expanded);
     }
 
     #[test]
     fn test_handle_normal_mode_delete_pane() {
         let running = Arc::new(AtomicBool::new(true));
         let closed = Arc::new(Mutex::new(HashSet::new()));
-        let mut selected = 1;
-        let mut input_mode = false;
-        let mut expanded = false;
-        let mut panes = vec![make_pane("ns/a", 0), make_pane("ns/b", 0), make_pane("ns/c", 0)];
-        let mut pane_index = rebuild_pane_index(&panes);
+        let mut state = make_state(&["ns/a", "ns/b", "ns/c"], 0);
+        state.selected = 1;
 
-        handle_normal_mode(
-            KeyCode::Char('d'),
-            KeyModifiers::NONE,
-            &mut selected,
-            &mut input_mode,
-            &mut expanded,
-            &mut panes,
-            &mut pane_index,
-            &running,
-            &closed,
-            20,
-        );
+        press_key(&mut state, KeyCode::Char('d'), &running, &closed);
 
-        assert_eq!(panes.len(), 2);
-        assert_eq!(panes[0].key, "ns/a");
-        assert_eq!(panes[1].key, "ns/c");
+        assert_eq!(state.panes.len(), 2);
+        assert_eq!(state.panes[0].key, "ns/a");
+        assert_eq!(state.panes[1].key, "ns/c");
         assert!(closed.lock().unwrap().contains("ns/b"));
-        assert_eq!(selected, 1);
+        assert_eq!(state.selected, 1);
     }
 
     #[test]
     fn test_handle_normal_mode_delete_last_pane_clamps_selected() {
         let running = Arc::new(AtomicBool::new(true));
         let closed = Arc::new(Mutex::new(HashSet::new()));
-        let mut selected = 2;
-        let mut input_mode = false;
-        let mut expanded = false;
-        let mut panes = vec![make_pane("ns/a", 0), make_pane("ns/b", 0), make_pane("ns/c", 0)];
-        let mut pane_index = rebuild_pane_index(&panes);
+        let mut state = make_state(&["ns/a", "ns/b", "ns/c"], 0);
+        state.selected = 2;
 
-        handle_normal_mode(
-            KeyCode::Char('d'),
-            KeyModifiers::NONE,
-            &mut selected,
-            &mut input_mode,
-            &mut expanded,
-            &mut panes,
-            &mut pane_index,
-            &running,
-            &closed,
-            20,
-        );
+        press_key(&mut state, KeyCode::Char('d'), &running, &closed);
 
-        assert_eq!(panes.len(), 2);
-        assert_eq!(selected, 1);
+        assert_eq!(state.panes.len(), 2);
+        assert_eq!(state.selected, 1);
     }
 
     #[test]
     fn test_handle_normal_mode_scroll_up_down() {
         let running = Arc::new(AtomicBool::new(true));
         let closed = Arc::new(Mutex::new(HashSet::new()));
-        let mut selected = 0;
-        let mut input_mode = false;
-        let mut expanded = false;
-        let mut panes = vec![make_pane("ns/a", 100)];
-        let mut pane_index = rebuild_pane_index(&panes);
+        let mut state = make_state(&["ns/a"], 100);
 
-        assert!(panes[0].is_following());
+        assert!(state.panes[0].is_following());
 
-        handle_normal_mode(
-            KeyCode::Up,
-            KeyModifiers::NONE,
-            &mut selected,
-            &mut input_mode,
-            &mut expanded,
-            &mut panes,
-            &mut pane_index,
-            &running,
-            &closed,
-            20,
-        );
-        assert_eq!(panes[0].scroll_up, Some(1));
+        press_key(&mut state, KeyCode::Up, &running, &closed);
+        assert_eq!(state.panes[0].scroll_up, Some(1));
 
-        handle_normal_mode(
-            KeyCode::Up,
-            KeyModifiers::NONE,
-            &mut selected,
-            &mut input_mode,
-            &mut expanded,
-            &mut panes,
-            &mut pane_index,
-            &running,
-            &closed,
-            20,
-        );
-        assert_eq!(panes[0].scroll_up, Some(2));
+        press_key(&mut state, KeyCode::Up, &running, &closed);
+        assert_eq!(state.panes[0].scroll_up, Some(2));
 
-        handle_normal_mode(
-            KeyCode::Down,
-            KeyModifiers::NONE,
-            &mut selected,
-            &mut input_mode,
-            &mut expanded,
-            &mut panes,
-            &mut pane_index,
-            &running,
-            &closed,
-            20,
-        );
-        assert_eq!(panes[0].scroll_up, Some(1));
+        press_key(&mut state, KeyCode::Down, &running, &closed);
+        assert_eq!(state.panes[0].scroll_up, Some(1));
 
-        handle_normal_mode(
-            KeyCode::Down,
-            KeyModifiers::NONE,
-            &mut selected,
-            &mut input_mode,
-            &mut expanded,
-            &mut panes,
-            &mut pane_index,
-            &running,
-            &closed,
-            20,
-        );
-        assert!(panes[0].is_following());
+        press_key(&mut state, KeyCode::Down, &running, &closed);
+        assert!(state.panes[0].is_following());
     }
 
     #[test]
     fn test_handle_normal_mode_end_resumes_follow() {
         let running = Arc::new(AtomicBool::new(true));
         let closed = Arc::new(Mutex::new(HashSet::new()));
-        let mut selected = 0;
-        let mut input_mode = false;
-        let mut expanded = false;
-        let mut panes = vec![make_pane("ns/a", 100)];
-        let mut pane_index = rebuild_pane_index(&panes);
-        panes[0].scroll_up = Some(50);
+        let mut state = make_state(&["ns/a"], 100);
+        state.panes[0].scroll_up = Some(50);
 
-        handle_normal_mode(
-            KeyCode::End,
-            KeyModifiers::NONE,
-            &mut selected,
-            &mut input_mode,
-            &mut expanded,
-            &mut panes,
-            &mut pane_index,
-            &running,
-            &closed,
-            20,
-        );
-        assert!(panes[0].is_following());
+        press_key(&mut state, KeyCode::End, &running, &closed);
+        assert!(state.panes[0].is_following());
     }
 
     #[test]
     fn test_handle_normal_mode_home_scrolls_to_top() {
         let running = Arc::new(AtomicBool::new(true));
         let closed = Arc::new(Mutex::new(HashSet::new()));
-        let mut selected = 0;
-        let mut input_mode = false;
-        let mut expanded = false;
-        let mut panes = vec![make_pane("ns/a", 100)];
-        let mut pane_index = rebuild_pane_index(&panes);
+        let mut state = make_state(&["ns/a"], 100);
 
-        handle_normal_mode(
-            KeyCode::Home,
-            KeyModifiers::NONE,
-            &mut selected,
-            &mut input_mode,
-            &mut expanded,
-            &mut panes,
-            &mut pane_index,
-            &running,
-            &closed,
-            20,
-        );
-        assert_eq!(panes[0].scroll_up, Some(99));
-        assert_eq!(panes[0].scroll_offset(20), 0);
+        press_key(&mut state, KeyCode::Home, &running, &closed);
+        assert_eq!(state.panes[0].scroll_up, Some(99));
+        assert_eq!(state.panes[0].scroll_offset(20), 0);
     }
 
     #[test]
     fn test_handle_normal_mode_input_mode() {
         let running = Arc::new(AtomicBool::new(true));
         let closed = Arc::new(Mutex::new(HashSet::new()));
-        let mut selected = 0;
-        let mut input_mode = false;
-        let mut expanded = false;
-        let mut panes = vec![make_pane("ns/a", 0)];
-        let mut pane_index = rebuild_pane_index(&panes);
+        let mut state = make_state(&["ns/a"], 0);
 
-        handle_normal_mode(
-            KeyCode::Char('a'),
-            KeyModifiers::NONE,
-            &mut selected,
-            &mut input_mode,
-            &mut expanded,
-            &mut panes,
-            &mut pane_index,
-            &running,
-            &closed,
-            20,
-        );
-        assert!(input_mode);
+        press_key(&mut state, KeyCode::Char('a'), &running, &closed);
+        assert!(state.input_mode);
     }
 
     #[test]
@@ -1255,9 +1052,10 @@ mod tests {
 
     #[test]
     fn test_handle_mouse_scroll_up() {
-        let mut selected = 0;
-        let mut panes = vec![make_pane("ns/a", 100), make_pane("ns/b", 50)];
-        let pane_rects = vec![
+        let mut state = make_state(&["ns/a", "ns/b"], 0);
+        for _ in 0..100 { state.panes[0].push_line("x".to_string()); }
+        for _ in 0..50 { state.panes[1].push_line("x".to_string()); }
+        state.pane_rects = vec![
             (0, Rect::new(0, 0, 80, 20)),
             (1, Rect::new(0, 20, 80, 20)),
         ];
@@ -1268,17 +1066,16 @@ mod tests {
             row: 25,
             modifiers: KeyModifiers::NONE,
         };
-        handle_mouse_event(mouse, &mut selected, &mut panes, &pane_rects);
+        handle_mouse_event(mouse, &mut state);
 
-        assert_eq!(selected, 1);
-        assert_eq!(panes[1].scroll_up, Some(3));
+        assert_eq!(state.selected, 1);
+        assert_eq!(state.panes[1].scroll_up, Some(3));
     }
 
     #[test]
     fn test_handle_mouse_click_selects_pane() {
-        let mut selected = 0;
-        let mut panes = vec![make_pane("ns/a", 10), make_pane("ns/b", 10)];
-        let pane_rects = vec![
+        let mut state = make_state(&["ns/a", "ns/b"], 10);
+        state.pane_rects = vec![
             (0, Rect::new(0, 0, 80, 20)),
             (1, Rect::new(0, 20, 80, 20)),
         ];
@@ -1289,8 +1086,8 @@ mod tests {
             row: 25,
             modifiers: KeyModifiers::NONE,
         };
-        handle_mouse_event(mouse, &mut selected, &mut panes, &pane_rects);
+        handle_mouse_event(mouse, &mut state);
 
-        assert_eq!(selected, 1);
+        assert_eq!(state.selected, 1);
     }
 }
