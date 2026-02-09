@@ -20,6 +20,8 @@ The project uses **release-plz** for automated semantic versioning based on [Con
 
 So: push to main with conventional commits → version bump and release happen automatically in one run.
 
+**First-time setup:** The package must exist on crates.io so release-plz can determine the current version. If you haven't published yet, run `cargo publish` once from main (with the version you want, e.g. the current `Cargo.toml` version), then the workflow will take over for future releases.
+
 ### PyPI Publishing
 
 The `release.yml` workflow uses semantic-release to publish to PyPI on push to main. It requires:
