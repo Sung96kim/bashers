@@ -257,6 +257,6 @@ mod tests {
     #[test]
     fn test_version_comparison() {
         // Test version comparison logic
-        assert_eq!("0.4.9", CURRENT_VERSION);
+        assert_eq!(env!("CARGO_PKG_VERSION"), CURRENT_VERSION);
     }
 }
