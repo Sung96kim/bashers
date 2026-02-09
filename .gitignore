@@ -31,3 +31,19 @@ htmlcov/
 .mypy_cache/
 .dmypy.json
 dmypy.json
+
+
+# Added by cargo
+
+/target
+
+# Rust
+/target/
+bashers-linux-x86_64.tar.gz
+bashers/bin/
+Cargo.lock
+
+# Coverage
+/coverage/
+*.xml
+tarpaulin-report.html

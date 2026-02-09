@@ -1,0 +1,140 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, feat/* ]
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+      
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+      
+      - name: Check
+        run: cargo check
+      
+      - name: Build
+        run: cargo build --verbose
+      
+      - name: Install cargo-tarpaulin
+        run: cargo install cargo-tarpaulin --locked --force
+      
+      - name: Coverage
+        run: cargo tarpaulin --lib --out Xml --output-dir coverage --timeout 120
+      
+      - name: Clippy
+        run: cargo clippy -- -D warnings
+
+  release:
+    name: Release
+    runs-on: ubuntu-latest
+    needs: [test]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    # Optional: add "environment: Rust Push" for approval gates
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+      
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+      
+      - name: Install release-plz
+        run: cargo install release-plz --locked
+      
+      - name: Get latest tag before release
+        id: before
+        run: |
+          git fetch origin --tags
+          TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "none")
+          echo "TAG=$TAG" >> $GITHUB_OUTPUT
+      
+      - name: Create release with release-plz
+        run: release-plz release
+      
+      - name: Check if release was created
+        id: release_plz
+        run: |
+          git fetch origin --tags
+          git fetch origin main
+          NEW_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          OLD_TAG="${{ steps.before.outputs.TAG }}"
+          if [ -n "$NEW_TAG" ] && [ "$NEW_TAG" != "$OLD_TAG" ]; then
+            echo "RELEASE_CREATED=true" >> $GITHUB_OUTPUT
+            echo "NEW_TAG=$NEW_TAG" >> $GITHUB_OUTPUT
+            # Tag format: v0.4.9 (single pkg) or bashers-v0.4.9 (multi-pkg)
+            VERSION=${NEW_TAG##*-v}
+            [ "$VERSION" = "$NEW_TAG" ] && VERSION=${NEW_TAG#v}
+            echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+          else
+            echo "RELEASE_CREATED=false" >> $GITHUB_OUTPUT
+            echo "No new release created (tag unchanged or release-plz had nothing to release)"
+          fi
+      
+      - name: Validate VERSION and checkout release tag
+        if: steps.release_plz.outputs.RELEASE_CREATED == 'true'
+        run: |
+          VERSION="${{ steps.release_plz.outputs.VERSION }}"
+          if [ -z "$VERSION" ]; then
+            echo "::error::VERSION is empty but RELEASE_CREATED is true"
+            exit 1
+          fi
+          git fetch origin --tags
+          git fetch origin main
+          NEW_TAG="${{ steps.release_plz.outputs.NEW_TAG }}"
+          git checkout "$NEW_TAG" || git checkout "v$VERSION" || git checkout main
+      
+      - name: Build for Linux x86_64
+        if: steps.release_plz.outputs.RELEASE_CREATED == 'true'
+        run: cargo build --release
+      
+      - name: Create release archive Linux x86_64
+        if: steps.release_plz.outputs.RELEASE_CREATED == 'true'
+        run: |
+          chmod +x target/release/bashers target/release/bs
+          tar czf bashers-linux-x86_64.tar.gz -C target/release bashers bs
+      
+      - name: Prepare install script
+        if: steps.release_plz.outputs.RELEASE_CREATED == 'true'
+        run: |
+          sed -i "s|Sung96kim/bashers|${{ github.repository }}|g" scripts/install.sh
+          chmod +x scripts/install.sh
+      
+      - name: Attach assets to GitHub Release
+        if: steps.release_plz.outputs.RELEASE_CREATED == 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            bashers-linux-x86_64.tar.gz
+            scripts/install.sh
+          tag_name: ${{ steps.release_plz.outputs.NEW_TAG }}

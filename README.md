@@ -1,9 +1,30 @@
 # Bashers
-Installable bash command helpers
+Installable CLI command helpers (written in Rust)
 
 ## Installation
 
-Install from PyPI:
+### Quick Install (Recommended)
+
+Install with a single command:
+
+```bash
+curl -LsSf https://raw.githubusercontent.com/Sung96kim/bashers/main/scripts/install.sh | sh
+```
+
+Or specify a version:
+
+```bash
+curl -LsSf https://raw.githubusercontent.com/Sung96kim/bashers/main/scripts/install.sh | sh -s -- 0.4.9
+```
+
+The script will:
+- Download the Linux x86_64 binary from GitHub releases
+- Install to `~/.local/bin/bashers` (and `bs` alias)
+- Add to PATH if needed
+
+**Note:** Linux x86_64 only. For other platforms/architectures, use pip or build from source.
+
+### pip (PyPI)
 
 ```bash
 pip install bashers
@@ -15,29 +36,42 @@ Or with uv:
 uv pip install bashers
 ```
 
-Local install (from this repo):
+### From Source
 
 ```bash
-pip install .
+cargo install --path .
 ```
 
-Or install from a built wheel:
+Or from git:
 
 ```bash
-pip install dist/bashers-*.whl
+cargo install --git https://github.com/Sung96kim/bashers.git
+```
+
+Both `bashers` and `bs` binaries are installed.
+
+### Manual Build
+
+```bash
+git clone https://github.com/Sung96kim/bashers.git
+cd bashers
+cargo build --release
+# Binary at target/release/bashers
+# Copy to ~/.local/bin/ or /usr/local/bin/
 ```
 
 ## Usage
 
-After installation, use the `bashers` dispatcher:
+Both `bashers` and `bs` are available (e.g. `bs update`, `bashers update`).
 
 ```bash
-bashers update
+bashers update   # or: bs update
 bashers update requests
 bashers show
 bashers show requests
 bashers setup
 bashers setup --frozen
+bashers setup --rm
 bashers gh
 bashers gh --dry-run
 ```
@@ -46,52 +80,140 @@ Verify the command is on PATH:
 
 ```bash
 which bashers
+which bs
 ```
 
-If you are using a virtualenv or `uv`, make sure its `bin/` directory is active in your shell.
+The binary will be installed to `~/.cargo/bin/bashers` by default (when using `cargo install`).
+Make sure `~/.cargo/bin` is in your PATH.
 
-## Shell Completion
+## Commands
 
-Bash completion:
+- **update** - Update Python dependencies (uv/poetry) with fuzzy package matching
+- **setup** - Install project dependencies (uv/poetry)
+- **show** - List installed packages (uv/poetry)
+- **gh** - Git home: checkout default branch, pull, fetch all
 
-```bash
-source <(bashers completion)
-```
+## Features
 
-The completion script auto-installs to `~/.local/share/bash-completion/completions/bashers` on first run.
-If you prefer, you can enable it manually (example):
-
-```bash
-bashers completion > ~/.bash_completion.d/bashers
-```
-
-## Spinner
-
-The default loader uses a built-in `dots13` spinner and has no extra dependencies.
-Disable it with `NO_SPINNER=1`.
+- **Fuzzy matching** - Find packages with partial names (e.g., `bashers update indi` matches `indicodata-core`)
+- **fzf integration** - Interactive selection when multiple matches found
+- **uv & poetry support** - Works with both package managers
+- **Color output** - Beautiful colored terminal output
+- **Dry-run mode** - Preview commands before executing
 
 ## Development
 
-To install in development mode:
+### Prerequisites
+
+- Rust and Cargo installed ([rustup.rs](https://rustup.rs/))
+- For testing: `cargo-tarpaulin` (optional, for coverage)
+
+### Building
 
 ```bash
-uv sync
+# Debug build
+cargo build
+
+# Release build (optimized)
+cargo build --release
+
+# Binary location
+# Debug: target/debug/bashers
+# Release: target/release/bashers
 ```
 
-Or with pip:
+### Running
 
 ```bash
-pip install -e .
+# Run directly with cargo (quiet mode to suppress build output)
+cargo run --quiet -- update --dry-run
+cargo run --quiet -- setup --dry-run
+cargo run --quiet -- show
+cargo run --quiet -- gh --dry-run
+
+# Or use the built binary (recommended for testing)
+./target/debug/bashers update --dry-run
+./target/release/bashers setup --dry-run
 ```
 
-Run tests:
+### Testing
 
 ```bash
-pytest
+# Run all tests
+cargo test
+
+# Run only unit tests
+cargo test --lib
+
+# Run only integration tests
+cargo test --test integration_test
+
+# Run with output
+cargo test -- --nocapture
+
+# Run specific test
+cargo test --lib test_fuzzy_match_exact
+```
+
+### Code Coverage
+
+```bash
+# Install cargo-tarpaulin
+cargo install cargo-tarpaulin --locked
+
+# Generate coverage report
+cargo tarpaulin --out Xml --output-dir coverage --timeout 120
+
+# View coverage (if HTML generated)
+open coverage/tarpaulin-report.html
+```
+
+### Code Quality
+
+```bash
+# Format code
+cargo fmt
+
+# Check formatting
+cargo fmt --check
+
+# Lint with clippy
+cargo clippy
+
+# Lint with strict warnings
+cargo clippy -- -D warnings
+```
+
+### Development Workflow
+
+```bash
+# 1. Make changes
+# 2. Check code compiles
+cargo check
+
+# 3. Run tests
+cargo test
+
+# 4. Format code
+cargo fmt
+
+# 5. Check for issues
+cargo clippy
+
+# 6. Build release
+cargo build --release
 ```
 
 ## Adding New Commands
 
-1. Add your bash script under the `bashers/` directory (subfolders are OK)
-2. If you want a bash function, define a function with the same name as the file
-3. Reinstall: `uv sync` or `pip install -e .`
+1. Add a new command module in `src/commands/`
+2. Implement the command function
+3. Add the command variant to `src/cli.rs`
+4. Wire it up in `src/main.rs`
+5. Rebuild: `cargo build`
+
+## Releasing
+
+See [RELEASING.md](RELEASING.md) for instructions on creating a new release.
+
+**Quick summary:** Push a version tag (e.g., `v0.4.9`) to trigger the automated release workflow, which builds the binary and creates a GitHub Release.
