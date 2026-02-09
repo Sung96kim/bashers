@@ -13,17 +13,12 @@ The project uses **release-plz** for automated semantic versioning based on [Con
    - `fix: fix bug` → bumps patch version (0.4.9 → 0.4.10)
    - `feat!: breaking change` → bumps major version (0.4.9 → 1.0.0)
 
-2. **Push to main** - The release workflow automatically:
-   - Analyzes commits since last release using release-plz
-   - Determines if a release is needed based on conventional commits
-   - If needed, automatically:
-     - Bumps version in `Cargo.toml`
-     - Creates a git tag
-     - Builds the release binary
-     - Creates a GitHub Release with the binary attached
-     - Builds and attaches Python wheel to the release
+2. **Push to main** - The release workflow:
+   - Runs `release-plz update` to bump the version in `Cargo.toml` and update the changelog from conventional commits
+   - Commits and pushes those changes directly to main (with `[skip ci]` to avoid an extra run)
+   - Runs `release-plz release` to create the git tag, publish to crates.io (if configured), and create the GitHub Release with the binary attached
 
-3. **No manual steps required** - Just push to main with conventional commits and releases happen automatically!
+So: push to main with conventional commits → version bump and release happen automatically in one run.
 
 ### PyPI Publishing
 
