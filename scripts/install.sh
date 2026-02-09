@@ -2,7 +2,7 @@
 set -eu
 
 APP_NAME="bashers"
-GITHUB_REPO="${BASHERS_GITHUB_REPO:-yourusername/bashers}"
+GITHUB_REPO="${BASHERS_GITHUB_REPO:-Sung96kim/bashers}"
 
 detect_arch() {
     local arch
@@ -41,13 +41,11 @@ download_binary() {
     local filename
     local bin_dir="${BASHERS_INSTALL_DIR:-$HOME/.local/bin}"
     
-    url="https://github.com/$GITHUB_REPO/releases/download/v${version}/bashers-linux-x86_64.tar.gz"
     filename="bashers-linux-x86_64.tar.gz"
-    
-    echo "Downloading $APP_NAME $version for linux-x86_64..."
-    
     mkdir -p "$bin_dir"
     
+    url="https://github.com/$GITHUB_REPO/releases/download/v${version}/bashers-linux-x86_64.tar.gz"
+    echo "Downloading $APP_NAME $version for linux-x86_64..."
     if command -v curl >/dev/null 2>&1; then
         curl -fL "$url" -o "/tmp/$filename"
     elif command -v wget >/dev/null 2>&1; then
@@ -62,10 +60,16 @@ download_binary() {
     
     mv "/tmp/bashers" "$bin_dir/bashers"
     chmod +x "$bin_dir/bashers"
+    if [ -f "/tmp/bs" ]; then
+        mv "/tmp/bs" "$bin_dir/bs"
+        chmod +x "$bin_dir/bs"
+    else
+        ln -sf bashers "$bin_dir/bs"
+    fi
     rm -f "/tmp/$filename"
     
     echo ""
-    echo "✓ $APP_NAME $version installed to $bin_dir/bashers"
+    echo "✓ $APP_NAME $version installed to $bin_dir/bashers (alias: bs)"
     echo ""
     
     if ! echo "$PATH" | grep -q "$bin_dir"; then

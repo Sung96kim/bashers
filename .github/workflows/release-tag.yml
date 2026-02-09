@@ -57,22 +57,22 @@ jobs:
       - name: Create release archive Linux x86_64
         if: steps.check_release.outputs.RELEASE_EXISTS == 'false'
         run: |
-          chmod +x target/release/bashers
-          tar czf bashers-linux-x86_64.tar.gz -C target/release bashers
+          chmod +x target/release/bashers target/release/bs
+          tar czf bashers-linux-x86_64.tar.gz -C target/release bashers bs
       
       - name: Prepare install script
         if: steps.check_release.outputs.RELEASE_EXISTS == 'false'
         run: |
-          sed -i "s|Sung96kim/bashers|${{ github.repository }}|g" install.sh
-          chmod +x install.sh
+          sed -i "s|Sung96kim/bashers|${{ github.repository }}|g" scripts/install.sh
+          chmod +x scripts/install.sh
       
       - name: Create GitHub Release
         if: steps.check_release.outputs.RELEASE_EXISTS == 'false'
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           files: |
             bashers-linux-x86_64.tar.gz
-            install.sh
+            scripts/install.sh
           tag_name: v${{ steps.get_version.outputs.VERSION }}
           name: v${{ steps.get_version.outputs.VERSION }}
           body: |
@@ -82,7 +82,7 @@ jobs:
             
             ### Quick Install (Recommended)
             ```bash
-            curl -LsSf https://raw.githubusercontent.com/${{ github.repository }}/main/install.sh | sh
+            curl -LsSf https://raw.githubusercontent.com/${{ github.repository }}/main/scripts/install.sh | sh
             ```
             
             ### From crates.io

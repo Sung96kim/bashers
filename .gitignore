@@ -39,6 +39,8 @@ dmypy.json
 
 # Rust
 /target/
+bashers-linux-x86_64.tar.gz
+bashers/bin/
 Cargo.lock
 
 # Coverage

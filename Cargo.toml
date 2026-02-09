@@ -1,14 +1,19 @@
 [package]
 name = "bashers"
-version = "0.4.9"
+version = "0.4.10"
 edition = "2021"
 authors = ["Sung Kim"]
 description = "Installable cli helpers"
 license = "MIT"
 readme = "README.md"
+default-run = "bashers"
 
 [[bin]]
 name = "bashers"
+path = "src/main.rs"
+
+[[bin]]
+name = "bs"
 path = "src/main.rs"
 
 [dependencies]
@@ -21,3 +26,7 @@ indicatif = "0.18.3"
 atty = "0.2"
 regex = "1.10"
 inquire = "0.9"
+ctrlc = "3.4"
+ratatui = "0.30.0"
+crossterm = "0.29"
+ansi-to-tui = "8.0.1"

@@ -2,7 +2,12 @@ use anyhow::{Context, Result};
 use regex::Regex;
 use std::process::{Command, Stdio};
 
+const RESET: &str = "\x1b[0m";
+const BOLD: &str = "\x1b[1m";
+const CYAN: &str = "\x1b[36m";
+
 pub fn run(pattern: &str) -> Result<()> {
+    let use_color = atty::is(atty::Stream::Stdout);
     let pods_output = Command::new("kubectl")
         .args([
             "get",
@@ -49,8 +54,13 @@ pub fn run(pattern: &str) -> Result<()> {
 
         let describe_stdout = String::from_utf8(describe_output.stdout)?;
         for describe_line in describe_stdout.lines() {
-            if describe_line.contains("Image:") {
-                println!("{}", describe_line.trim());
+            if let Some(image) = describe_line.trim().strip_prefix("Image:") {
+                let image = image.trim();
+                if use_color {
+                    println!("{CYAN}{BOLD}[{pod_name}]{RESET}: {image}");
+                } else {
+                    println!("[{pod_name}]: {image}");
+                }
             }
         }
     }

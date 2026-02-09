@@ -8,21 +8,33 @@ Installable CLI command helpers (written in Rust)
 Install with a single command:
 
 ```bash
-curl -LsSf https://raw.githubusercontent.com/Sung96kim/bashers/main/install.sh | sh
+curl -LsSf https://raw.githubusercontent.com/Sung96kim/bashers/main/scripts/install.sh | sh
 ```
 
 Or specify a version:
 
 ```bash
-curl -LsSf https://raw.githubusercontent.com/Sung96kim/bashers/main/install.sh | sh -s -- 0.4.9
+curl -LsSf https://raw.githubusercontent.com/Sung96kim/bashers/main/scripts/install.sh | sh -s -- 0.4.9
 ```
 
 The script will:
 - Download the Linux x86_64 binary from GitHub releases
-- Install to `~/.local/bin/bashers`
+- Install to `~/.local/bin/bashers` (and `bs` alias)
 - Add to PATH if needed
 
-**Note:** Linux x86_64 only. For other platforms/architectures, build from source.
+**Note:** Linux x86_64 only. For other platforms/architectures, use pip or build from source.
+
+### pip (PyPI)
+
+```bash
+pip install bashers
+```
+
+Or with uv:
+
+```bash
+uv pip install bashers
+```
 
 ### From Source
 
@@ -36,6 +48,8 @@ Or from git:
 cargo install --git https://github.com/Sung96kim/bashers.git
 ```
 
+Both `bashers` and `bs` binaries are installed.
+
 ### Manual Build
 
 ```bash
@@ -48,10 +62,10 @@ cargo build --release
 
 ## Usage
 
-After installation, use the `bashers` command:
+Both `bashers` and `bs` are available (e.g. `bs update`, `bashers update`).
 
 ```bash
-bashers update
+bashers update   # or: bs update
 bashers update requests
 bashers show
 bashers show requests
@@ -66,6 +80,7 @@ Verify the command is on PATH:
 
 ```bash
 which bashers
+which bs
 ```
 
 The binary will be installed to `~/.cargo/bin/bashers` by default (when using `cargo install`).

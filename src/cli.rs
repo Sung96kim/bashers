@@ -44,10 +44,10 @@ pub enum Commands {
         #[arg(long)]
         dry_run: bool,
     },
-    /// Kubectl describe pod(s) and show Image lines (pod name regex-matched)
-    Kmg {
-        /// Pod name pattern (regex)
-        pattern: String,
+    /// Kubernetes helper commands
+    Kube {
+        #[command(subcommand)]
+        command: KubeCommands,
     },
     /// Print version
     Version,
@@ -56,6 +56,26 @@ pub enum Commands {
     SelfCmd {
         #[command(subcommand)]
         command: SelfCommands,
+    },
+}
+
+#[derive(Subcommand)]
+pub enum KubeCommands {
+    /// Describe pod(s) and show Image lines (pod name regex-matched)
+    Kmg {
+        /// Pod name pattern (regex)
+        pattern: String,
+    },
+    /// Follow logs from pods matching patterns (persists through restarts)
+    Track {
+        /// Pod name patterns (regex)
+        patterns: Vec<String>,
+        /// Only show WARNING/ERROR/CRITICAL log lines and tracebacks
+        #[arg(long)]
+        err_only: bool,
+        /// Use simple output mode with context-switch headers instead of TUI
+        #[arg(long)]
+        simple: bool,
     },
 }
 

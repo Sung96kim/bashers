@@ -26,9 +26,18 @@ fn main() -> Result<()> {
         Some(bashers::cli::Commands::Gh { dry_run }) => {
             bashers::commands::gh::run(dry_run)?;
         }
-        Some(bashers::cli::Commands::Kmg { pattern }) => {
-            bashers::commands::kmg::run(&pattern)?;
-        }
+        Some(bashers::cli::Commands::Kube { command }) => match command {
+            bashers::cli::KubeCommands::Kmg { pattern } => {
+                bashers::commands::kube::kmg::run(&pattern)?;
+            }
+            bashers::cli::KubeCommands::Track {
+                patterns,
+                err_only,
+                simple,
+            } => {
+                bashers::commands::kube::track::run(&patterns, err_only, simple)?;
+            }
+        },
         Some(bashers::cli::Commands::Version) => {
             println!("bashers {}", env!("CARGO_PKG_VERSION"));
         }

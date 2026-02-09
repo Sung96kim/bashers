@@ -21,8 +21,15 @@ The project uses **release-plz** for automated semantic versioning based on [Con
      - Creates a git tag
      - Builds the release binary
      - Creates a GitHub Release with the binary attached
+     - Builds and attaches Python wheel to the release
 
 3. **No manual steps required** - Just push to main with conventional commits and releases happen automatically!
+
+### PyPI Publishing
+
+The `release.yml` workflow uses semantic-release to publish to PyPI on push to main. It requires:
+- `PYPI_TOKEN` secret
+- `Pypi push` environment
 
 ### Conventional Commit Format
 
@@ -99,20 +106,20 @@ After pushing the tag:
 3. Once complete, check Releases: https://github.com/Sung96kim/bashers/releases
 4. The release should include:
    - `bashers-linux-x86_64.tar.gz` (the binary archive)
-   - `install.sh` (the installation script)
+   - `scripts/install.sh` (the installation script)
 
 ### 5. Test Installation
 
 Test that users can install the release:
 
 ```bash
-curl -LsSf https://raw.githubusercontent.com/Sung96kim/bashers/main/install.sh | sh
+curl -LsSf https://raw.githubusercontent.com/Sung96kim/bashers/main/scripts/install.sh | sh
 ```
 
 Or test a specific version:
 
 ```bash
-curl -LsSf https://raw.githubusercontent.com/Sung96kim/bashers/main/install.sh | sh -s -- 0.4.9
+curl -LsSf https://raw.githubusercontent.com/Sung96kim/bashers/main/scripts/install.sh | sh -s -- 0.4.9
 ```
 
 ## Manual Release (Alternative)
