@@ -80,6 +80,8 @@ jobs:
           echo "TAG=$TAG" >> $GITHUB_OUTPUT
       
       - name: Create release with release-plz
+        env:
+          GIT_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: release-plz release
       
       - name: Check if release was created
