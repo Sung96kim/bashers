@@ -4,6 +4,8 @@ mod tui;
 use anyhow::{Context, Result};
 use regex::Regex;
 use std::process::Command;
+use std::thread;
+use std::time::Duration;
 
 pub struct PodInfo {
     pub namespace: String,
@@ -23,17 +25,23 @@ pub fn run(patterns: &[String], err_only: bool, simple: bool) -> Result<()> {
     let use_color = atty::is(atty::Stream::Stdout);
 
     let mut any_match = false;
+    let mut has_warnings = false;
     for (i, pattern) in patterns.iter().enumerate() {
         let has_match = pods.iter().any(|p| p.pattern_idx == i);
         if has_match {
             any_match = true;
         } else {
             print_no_match_warning(pattern, use_color);
+            has_warnings = true;
         }
     }
 
     if !any_match {
         return Ok(());
+    }
+
+    if has_warnings && !simple {
+        thread::sleep(Duration::from_secs(2));
     }
 
     if simple {

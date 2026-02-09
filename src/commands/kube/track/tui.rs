@@ -60,8 +60,12 @@ impl PodPane {
     }
 
     fn push_line(&mut self, line: String) {
-        if self.lines.len() >= MAX_LOG_LINES {
+        let was_at_max = self.lines.len() >= MAX_LOG_LINES;
+        if was_at_max {
             self.lines.pop_front();
+            if let Some(ref mut pos) = self.scroll_up {
+                *pos = pos.saturating_sub(1);
+            }
         }
         self.lines.push_back(line);
     }
@@ -70,7 +74,7 @@ impl PodPane {
         let auto = self.lines.len().saturating_sub(inner_height);
         match self.scroll_up {
             None => auto as u16,
-            Some(up) => auto.saturating_sub(up) as u16,
+            Some(pos) => (pos as u16).min(auto as u16),
         }
     }
 
@@ -87,6 +91,7 @@ struct TuiState {
     panes: Vec<PodPane>,
     pane_index: HashMap<String, usize>,
     pane_rects: Vec<(usize, Rect)>,
+    last_click: Option<(usize, std::time::Instant)>,
 }
 
 impl TuiState {
@@ -99,6 +104,7 @@ impl TuiState {
             panes: Vec::new(),
             pane_index: HashMap::new(),
             pane_rects: vec![],
+            last_click: None,
         }
     }
 
@@ -297,7 +303,7 @@ fn run_tui(
                     let title = if pane.is_following() {
                         format!(" {} ", pane.key)
                     } else {
-                        format!(" {} [PAUSED] ", pane.key)
+                        format!(" {} [SCROLLED] ", pane.key)
                     };
 
                     let title_style = if !pane.is_following() {
@@ -316,21 +322,29 @@ fn run_tui(
                         .border_style(border_style);
 
                     let inner_height = chunks[ci].height.saturating_sub(2) as usize;
-                    let scroll_offset = pane.scroll_offset(inner_height);
+                    let scroll_offset = pane.scroll_offset(inner_height) as usize;
 
-                    let content = pane.lines.iter().cloned().collect::<Vec<_>>().join("\n");
-                    let text =
-                        content.as_bytes().into_text().unwrap_or_else(|_| Text::raw(&content));
-                    let paragraph = Paragraph::new(text)
-                        .block(block)
-                        .scroll((scroll_offset, 0));
+                    let visible_end = (scroll_offset + inner_height).min(pane.lines.len());
+                    let visible_slice: String = pane
+                        .lines
+                        .iter()
+                        .skip(scroll_offset)
+                        .take(visible_end - scroll_offset)
+                        .cloned()
+                        .collect::<Vec<_>>()
+                        .join("\n");
+                    let text = visible_slice
+                        .as_bytes()
+                        .into_text()
+                        .unwrap_or_else(|_| Text::raw(&visible_slice));
+                    let paragraph = Paragraph::new(text).block(block);
 
                     frame.render_widget(paragraph, chunks[ci]);
 
                     if pane.lines.len() > inner_height {
                         let max_scroll = pane.lines.len().saturating_sub(inner_height);
-                        let mut scrollbar_state = ScrollbarState::new(max_scroll)
-                            .position(scroll_offset as usize);
+                        let mut scrollbar_state =
+                            ScrollbarState::new(max_scroll).position(scroll_offset);
                         let scrollbar = Scrollbar::new(ScrollbarOrientation::VerticalRight)
                             .style(Style::default().fg(if is_selected {
                                 pane.color
@@ -498,22 +512,44 @@ fn handle_mouse_event(mouse: crossterm::event::MouseEvent, state: &mut TuiState)
         MouseEventKind::ScrollUp => {
             state.selected = pane_idx;
             if let Some(pane) = state.panes.get_mut(pane_idx) {
-                let max = pane.lines.len().saturating_sub(1);
-                let current = pane.scroll_up.unwrap_or(0);
-                pane.scroll_up = Some(current.saturating_add(3).min(max));
+                let inner_h = rect.height.saturating_sub(2) as usize;
+                let auto = pane.lines.len().saturating_sub(inner_h);
+                let current = pane.scroll_up.unwrap_or(auto);
+                pane.scroll_up = Some(current.saturating_sub(3));
             }
         }
         MouseEventKind::ScrollDown => {
             state.selected = pane_idx;
             if let Some(pane) = state.panes.get_mut(pane_idx) {
-                if let Some(up) = pane.scroll_up {
-                    pane.scroll_up = if up <= 3 { None } else { Some(up - 3) };
+                if let Some(pos) = pane.scroll_up {
+                    let inner_h = rect.height.saturating_sub(2) as usize;
+                    let auto = pane.lines.len().saturating_sub(inner_h);
+                    if pos + 3 >= auto {
+                        pane.scroll_up = None;
+                    } else {
+                        pane.scroll_up = Some(pos + 3);
+                    }
                 }
             }
         }
         MouseEventKind::Down(MouseButton::Left) => {
+            let now = std::time::Instant::now();
+            let is_double = state
+                .last_click
+                .map(|(prev_idx, prev_time)| {
+                    prev_idx == pane_idx && now.duration_since(prev_time).as_millis() < 400
+                })
+                .unwrap_or(false);
+
             state.selected = pane_idx;
-            scroll_to_scrollbar_pos(col, row, &rect, state.panes.get_mut(pane_idx));
+
+            if is_double {
+                state.expanded = !state.expanded;
+                state.last_click = None;
+            } else {
+                scroll_to_scrollbar_pos(col, row, &rect, state.panes.get_mut(pane_idx));
+                state.last_click = Some((pane_idx, now));
+            }
         }
         MouseEventKind::Drag(MouseButton::Left) => {
             scroll_to_scrollbar_pos(col, row, &rect, state.panes.get_mut(pane_idx));
@@ -534,9 +570,12 @@ fn scroll_to_scrollbar_pos(col: u16, row: u16, rect: &Rect, pane: Option<&mut Po
         if let Some(pane) = pane {
             let click_pos = (row - inner_top) as usize;
             let max_scroll = pane.lines.len().saturating_sub(inner_height);
-            let target = (click_pos * max_scroll) / inner_height.max(1);
-            let scroll_up = max_scroll.saturating_sub(target);
-            pane.scroll_up = if scroll_up == 0 { None } else { Some(scroll_up) };
+            let target_pos = (click_pos * max_scroll) / inner_height.max(1);
+            if target_pos >= max_scroll {
+                pane.scroll_up = None;
+            } else {
+                pane.scroll_up = Some(target_pos);
+            }
         }
     }
 }
@@ -605,37 +644,46 @@ fn handle_normal_mode(
         }
         KeyCode::Up => {
             if let Some(pane) = state.panes.get_mut(state.selected) {
-                let max = pane.lines.len().saturating_sub(1);
-                let current = pane.scroll_up.unwrap_or(0);
-                pane.scroll_up = Some(current.saturating_add(1).min(max));
+                let auto = pane.lines.len().saturating_sub(page_size);
+                let current = pane.scroll_up.unwrap_or(auto);
+                pane.scroll_up = Some(current.saturating_sub(1));
             }
         }
         KeyCode::Down => {
             if let Some(pane) = state.panes.get_mut(state.selected) {
-                if let Some(up) = pane.scroll_up {
-                    pane.scroll_up = if up <= 1 { None } else { Some(up - 1) };
+                if let Some(pos) = pane.scroll_up {
+                    let auto = pane.lines.len().saturating_sub(page_size);
+                    if pos + 1 >= auto {
+                        pane.scroll_up = None;
+                    } else {
+                        pane.scroll_up = Some(pos + 1);
+                    }
                 }
             }
         }
         KeyCode::PageUp => {
             if let Some(pane) = state.panes.get_mut(state.selected) {
-                let max = pane.lines.len().saturating_sub(1);
-                let current = pane.scroll_up.unwrap_or(0);
-                pane.scroll_up = Some(current.saturating_add(page_size).min(max));
+                let auto = pane.lines.len().saturating_sub(page_size);
+                let current = pane.scroll_up.unwrap_or(auto);
+                pane.scroll_up = Some(current.saturating_sub(page_size));
             }
         }
         KeyCode::PageDown => {
             if let Some(pane) = state.panes.get_mut(state.selected) {
-                if let Some(up) = pane.scroll_up {
-                    pane.scroll_up = if up <= page_size { None } else { Some(up - page_size) };
+                if let Some(pos) = pane.scroll_up {
+                    let auto = pane.lines.len().saturating_sub(page_size);
+                    if pos + page_size >= auto {
+                        pane.scroll_up = None;
+                    } else {
+                        pane.scroll_up = Some(pos + page_size);
+                    }
                 }
             }
         }
         KeyCode::Home => {
             if let Some(pane) = state.panes.get_mut(state.selected) {
-                let max = pane.lines.len().saturating_sub(1);
-                if max > 0 {
-                    pane.scroll_up = Some(max);
+                if !pane.lines.is_empty() {
+                    pane.scroll_up = Some(0);
                 }
             }
         }
@@ -838,24 +886,24 @@ mod tests {
     }
 
     #[test]
-    fn test_pod_pane_scroll_offset_scrolled_up() {
+    fn test_pod_pane_scroll_offset_scrolled() {
         let mut pane = make_pane("ns/pod", 100);
         pane.scroll_up = Some(10);
-        assert_eq!(pane.scroll_offset(20), 70);
+        assert_eq!(pane.scroll_offset(20), 10);
     }
 
     #[test]
-    fn test_pod_pane_scroll_offset_scrolled_to_top() {
+    fn test_pod_pane_scroll_offset_at_top() {
         let mut pane = make_pane("ns/pod", 100);
-        pane.scroll_up = Some(80);
+        pane.scroll_up = Some(0);
         assert_eq!(pane.scroll_offset(20), 0);
     }
 
     #[test]
-    fn test_pod_pane_scroll_offset_scroll_beyond_top_saturates() {
+    fn test_pod_pane_scroll_offset_clamped_to_auto() {
         let mut pane = make_pane("ns/pod", 100);
         pane.scroll_up = Some(200);
-        assert_eq!(pane.scroll_offset(20), 0);
+        assert_eq!(pane.scroll_offset(20), 80);
     }
 
     #[test]
@@ -978,13 +1026,13 @@ mod tests {
         assert!(state.panes[0].is_following());
 
         press_key(&mut state, KeyCode::Up, &running, &closed);
-        assert_eq!(state.panes[0].scroll_up, Some(1));
+        assert_eq!(state.panes[0].scroll_up, Some(79));
 
         press_key(&mut state, KeyCode::Up, &running, &closed);
-        assert_eq!(state.panes[0].scroll_up, Some(2));
+        assert_eq!(state.panes[0].scroll_up, Some(78));
 
         press_key(&mut state, KeyCode::Down, &running, &closed);
-        assert_eq!(state.panes[0].scroll_up, Some(1));
+        assert_eq!(state.panes[0].scroll_up, Some(79));
 
         press_key(&mut state, KeyCode::Down, &running, &closed);
         assert!(state.panes[0].is_following());
@@ -1008,7 +1056,7 @@ mod tests {
         let mut state = make_state(&["ns/a"], 100);
 
         press_key(&mut state, KeyCode::Home, &running, &closed);
-        assert_eq!(state.panes[0].scroll_up, Some(99));
+        assert_eq!(state.panes[0].scroll_up, Some(0));
         assert_eq!(state.panes[0].scroll_offset(20), 0);
     }
 
@@ -1045,9 +1093,8 @@ mod tests {
         let inner_height = 20usize;
         let max_scroll = 100 - inner_height;
         scroll_to_scrollbar_pos(79, 20, &rect, Some(&mut pane));
-        let expected_target = (19 * max_scroll) / inner_height;
-        let expected_up = max_scroll.saturating_sub(expected_target);
-        assert_eq!(pane.scroll_up, if expected_up == 0 { None } else { Some(expected_up) });
+        let expected_pos = (19 * max_scroll) / inner_height;
+        assert_eq!(pane.scroll_up, Some(expected_pos));
     }
 
     #[test]
@@ -1069,7 +1116,9 @@ mod tests {
         handle_mouse_event(mouse, &mut state);
 
         assert_eq!(state.selected, 1);
-        assert_eq!(state.panes[1].scroll_up, Some(3));
+        let inner_h = 18;
+        let auto = 50usize.saturating_sub(inner_h);
+        assert_eq!(state.panes[1].scroll_up, Some(auto.saturating_sub(3)));
     }
 
     #[test]
