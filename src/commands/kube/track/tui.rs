@@ -23,6 +23,7 @@ use std::thread;
 use std::time::Duration;
 
 const MAX_LOG_LINES: usize = 5000;
+const MIN_PANE_HEIGHT: u16 = 12;
 
 const TUI_COLORS: &[Color] = &[
     Color::Cyan,
@@ -85,9 +86,11 @@ impl PodPane {
 
 struct TuiState {
     selected: usize,
+    current_tab: usize,
     expanded: bool,
     input_mode: bool,
     input_buffer: String,
+    mouse_captured: bool,
     panes: Vec<PodPane>,
     pane_index: HashMap<String, usize>,
     pane_rects: Vec<(usize, Rect)>,
@@ -98,9 +101,11 @@ impl TuiState {
     fn new() -> Self {
         Self {
             selected: 0,
+            current_tab: 0,
             expanded: false,
             input_mode: false,
             input_buffer: String::new(),
+            mouse_captured: true,
             panes: Vec::new(),
             pane_index: HashMap::new(),
             pane_rects: vec![],
@@ -120,6 +125,40 @@ impl TuiState {
             .enumerate()
             .map(|(i, p)| (p.key.clone(), i))
             .collect();
+    }
+
+    fn max_panes_per_tab(&self, available_height: u16) -> usize {
+        (available_height / MIN_PANE_HEIGHT).max(1) as usize
+    }
+
+    fn total_tabs(&self, available_height: u16) -> usize {
+        if self.panes.is_empty() {
+            return 1;
+        }
+        let per_tab = self.max_panes_per_tab(available_height);
+        self.panes.len().div_ceil(per_tab)
+    }
+
+    fn visible_indices(&self, available_height: u16) -> Vec<usize> {
+        if self.expanded {
+            return vec![self.selected];
+        }
+        let per_tab = self.max_panes_per_tab(available_height);
+        let start = self.current_tab * per_tab;
+        let end = (start + per_tab).min(self.panes.len());
+        (start..end).collect()
+    }
+
+    fn ensure_selected_visible(&mut self, available_height: u16) {
+        if self.panes.is_empty() {
+            self.current_tab = 0;
+            return;
+        }
+        let per_tab = self.max_panes_per_tab(available_height);
+        let total = self.total_tabs(available_height);
+        self.current_tab = self.current_tab.min(total.saturating_sub(1));
+        let tab_for_selected = self.selected / per_tab;
+        self.current_tab = tab_for_selected.min(total.saturating_sub(1));
     }
 }
 
@@ -245,14 +284,11 @@ fn run_tui(
         }
 
         let term_size = terminal.size()?;
+        let available_height = term_size.height.saturating_sub(1);
         {
             let main_layout =
                 Layout::vertical([Constraint::Min(0), Constraint::Length(1)]).split(term_size.into());
-            let visible_indices: Vec<usize> = if state.expanded {
-                vec![state.selected]
-            } else {
-                (0..state.panes.len()).collect()
-            };
+            let visible_indices = state.visible_indices(available_height);
             let vis_count = visible_indices.len().max(1) as u32;
             let constraints: Vec<Constraint> = visible_indices
                 .iter()
@@ -266,22 +302,20 @@ fn run_tui(
                 .collect();
         }
 
+        let total_tabs = state.total_tabs(available_height);
+
         terminal.draw(|frame| {
             let main_chunks = Layout::vertical([Constraint::Min(0), Constraint::Length(1)])
                 .split(frame.area());
 
             if !state.panes.is_empty() {
-                let visible: Vec<(usize, &PodPane)> = if state.expanded {
-                    state.panes
-                        .iter()
-                        .enumerate()
-                        .filter(|(i, _)| *i == state.selected)
-                        .collect()
-                } else {
-                    state.panes.iter().enumerate().collect()
-                };
+                let visible_indices = state.visible_indices(available_height);
+                let visible: Vec<(usize, &PodPane)> = visible_indices
+                    .iter()
+                    .filter_map(|&i| state.panes.get(i).map(|p| (i, p)))
+                    .collect();
 
-                let vis_count = visible.len() as u32;
+                let vis_count = visible.len().max(1) as u32;
                 let constraints: Vec<Constraint> = visible
                     .iter()
                     .map(|_| Constraint::Ratio(1, vis_count))
@@ -388,61 +422,89 @@ fn run_tui(
                     Span::raw(": cancel"),
                 ])
             } else {
-                Line::from(vec![
-                    Span::raw(" "),
-                    Span::styled(
-                        "Tab",
+                let mut spans = vec![Span::raw(" ")];
+
+                if total_tabs > 1 {
+                    spans.push(Span::styled(
+                        format!("[{}/{}]", state.current_tab + 1, total_tabs),
+                        Style::default()
+                            .fg(Color::White)
+                            .add_modifier(Modifier::BOLD),
+                    ));
+                    spans.push(Span::raw("  "));
+                    spans.push(Span::styled(
+                        "\u{2190}\u{2192}",
                         Style::default()
                             .fg(Color::LightCyan)
                             .add_modifier(Modifier::BOLD),
-                    ),
-                    Span::styled(": switch  ", Style::default().fg(Color::White)),
-                    Span::styled(
-                        "\u{2191}\u{2193}",
-                        Style::default()
-                            .fg(Color::LightCyan)
-                            .add_modifier(Modifier::BOLD),
-                    ),
-                    Span::styled(": scroll  ", Style::default().fg(Color::White)),
-                    Span::styled(
-                        "End",
-                        Style::default()
-                            .fg(Color::LightCyan)
-                            .add_modifier(Modifier::BOLD),
-                    ),
-                    Span::styled(": follow  ", Style::default().fg(Color::White)),
-                    Span::styled(
-                        "f",
-                        Style::default()
-                            .fg(Color::LightCyan)
-                            .add_modifier(Modifier::BOLD),
-                    ),
-                    Span::styled(
-                        if state.expanded { ": collapse  " } else { ": expand  " },
-                        Style::default().fg(Color::White),
-                    ),
-                    Span::styled(
-                        "a",
-                        Style::default()
-                            .fg(Color::LightGreen)
-                            .add_modifier(Modifier::BOLD),
-                    ),
-                    Span::styled(": add pod  ", Style::default().fg(Color::White)),
-                    Span::styled(
-                        "d",
-                        Style::default()
-                            .fg(Color::LightRed)
-                            .add_modifier(Modifier::BOLD),
-                    ),
-                    Span::styled(": close  ", Style::default().fg(Color::White)),
-                    Span::styled(
-                        "q",
-                        Style::default()
-                            .fg(Color::LightYellow)
-                            .add_modifier(Modifier::BOLD),
-                    ),
-                    Span::styled(": quit", Style::default().fg(Color::White)),
-                ])
+                    ));
+                    spans.push(Span::styled(": tabs  ", Style::default().fg(Color::White)));
+                }
+
+                spans.push(Span::styled(
+                    "Tab",
+                    Style::default()
+                        .fg(Color::LightCyan)
+                        .add_modifier(Modifier::BOLD),
+                ));
+                spans.push(Span::styled(": switch  ", Style::default().fg(Color::White)));
+                spans.push(Span::styled(
+                    "\u{2191}\u{2193}",
+                    Style::default()
+                        .fg(Color::LightCyan)
+                        .add_modifier(Modifier::BOLD),
+                ));
+                spans.push(Span::styled(": scroll  ", Style::default().fg(Color::White)));
+                spans.push(Span::styled(
+                    "End",
+                    Style::default()
+                        .fg(Color::LightCyan)
+                        .add_modifier(Modifier::BOLD),
+                ));
+                spans.push(Span::styled(": follow  ", Style::default().fg(Color::White)));
+                spans.push(Span::styled(
+                    "f",
+                    Style::default()
+                        .fg(Color::LightCyan)
+                        .add_modifier(Modifier::BOLD),
+                ));
+                spans.push(Span::styled(
+                    if state.expanded { ": collapse  " } else { ": expand  " },
+                    Style::default().fg(Color::White),
+                ));
+                spans.push(Span::styled(
+                    "a",
+                    Style::default()
+                        .fg(Color::LightGreen)
+                        .add_modifier(Modifier::BOLD),
+                ));
+                spans.push(Span::styled(": add pod  ", Style::default().fg(Color::White)));
+                spans.push(Span::styled(
+                    "d",
+                    Style::default()
+                        .fg(Color::LightRed)
+                        .add_modifier(Modifier::BOLD),
+                ));
+                spans.push(Span::styled(": close  ", Style::default().fg(Color::White)));
+                spans.push(Span::styled(
+                    "m",
+                    Style::default()
+                        .fg(Color::LightCyan)
+                        .add_modifier(Modifier::BOLD),
+                ));
+                spans.push(Span::styled(
+                    if state.mouse_captured { ": select text  " } else { ": mouse mode  " },
+                    Style::default().fg(Color::White),
+                ));
+                spans.push(Span::styled(
+                    "q",
+                    Style::default()
+                        .fg(Color::LightYellow)
+                        .add_modifier(Modifier::BOLD),
+                ));
+                spans.push(Span::styled(": quit", Style::default().fg(Color::White)));
+
+                Line::from(spans)
             };
 
             frame.render_widget(
@@ -457,12 +519,11 @@ fn run_tui(
                     if state.input_mode {
                         handle_input_mode(key_event.code, &mut state, &shared);
                     } else {
-                        let avail = term_size.height.saturating_sub(1);
-                        let pane_h = if state.panes.is_empty() {
-                            avail
-                        } else {
-                            avail / state.panes.len() as u16
-                        };
+                        let per_tab = state.max_panes_per_tab(available_height);
+                        let tab_start = state.current_tab * per_tab;
+                        let tab_end = (tab_start + per_tab).min(state.panes.len());
+                        let visible_count = tab_end.saturating_sub(tab_start).max(1);
+                        let pane_h = available_height / visible_count as u16;
                         let page_size = pane_h.saturating_sub(2) as usize;
 
                         let should_quit = handle_normal_mode(
@@ -472,13 +533,14 @@ fn run_tui(
                             &shared.running,
                             &shared.closed_pods,
                             page_size,
+                            available_height,
                         );
                         if should_quit {
                             break;
                         }
                     }
                 }
-                Event::Mouse(mouse_event) if !state.input_mode => {
+                Event::Mouse(mouse_event) if !state.input_mode && state.mouse_captured => {
                     handle_mouse_event(mouse_event, &mut state);
                 }
                 _ => {}
@@ -611,6 +673,7 @@ fn handle_normal_mode(
     running: &Arc<AtomicBool>,
     closed_pods: &Arc<Mutex<HashSet<String>>>,
     page_size: usize,
+    available_height: u16,
 ) -> bool {
     match code {
         KeyCode::Char('q') => {
@@ -629,9 +692,25 @@ fn handle_normal_mode(
                 state.expanded = false;
             }
         }
+        KeyCode::Left => {
+            if state.current_tab > 0 {
+                state.current_tab -= 1;
+                let per_tab = state.max_panes_per_tab(available_height);
+                state.selected = state.current_tab * per_tab;
+            }
+        }
+        KeyCode::Right => {
+            let total = state.total_tabs(available_height);
+            if state.current_tab + 1 < total {
+                state.current_tab += 1;
+                let per_tab = state.max_panes_per_tab(available_height);
+                state.selected = (state.current_tab * per_tab).min(state.panes.len().saturating_sub(1));
+            }
+        }
         KeyCode::Tab | KeyCode::Char('j') => {
             if !state.panes.is_empty() {
                 state.selected = (state.selected + 1) % state.panes.len();
+                state.ensure_selected_visible(available_height);
             }
         }
         KeyCode::BackTab | KeyCode::Char('k') => {
@@ -640,6 +719,7 @@ fn handle_normal_mode(
                     .selected
                     .checked_sub(1)
                     .unwrap_or(state.panes.len() - 1);
+                state.ensure_selected_visible(available_height);
             }
         }
         KeyCode::Up => {
@@ -692,6 +772,14 @@ fn handle_normal_mode(
                 pane.scroll_up = None;
             }
         }
+        KeyCode::Char('m') => {
+            state.mouse_captured = !state.mouse_captured;
+            if state.mouse_captured {
+                let _ = std::io::stdout().execute(EnableMouseCapture);
+            } else {
+                let _ = std::io::stdout().execute(DisableMouseCapture);
+            }
+        }
         KeyCode::Char('a') => {
             state.input_mode = true;
         }
@@ -706,6 +794,7 @@ fn handle_normal_mode(
                 } else {
                     state.selected = state.selected.min(state.panes.len() - 1);
                 }
+                state.ensure_selected_visible(available_height);
             }
         }
         _ => {}
@@ -925,7 +1014,7 @@ mod tests {
     }
 
     fn press_key(state: &mut TuiState, code: KeyCode, running: &Arc<AtomicBool>, closed: &Arc<Mutex<HashSet<String>>>) -> bool {
-        handle_normal_mode(code, KeyModifiers::NONE, state, running, closed, 20)
+        handle_normal_mode(code, KeyModifiers::NONE, state, running, closed, 20, 48)
     }
 
     #[test]
@@ -1138,5 +1227,105 @@ mod tests {
         handle_mouse_event(mouse, &mut state);
 
         assert_eq!(state.selected, 1);
+    }
+
+    #[test]
+    fn test_max_panes_per_tab() {
+        let state = TuiState::new();
+        assert_eq!(state.max_panes_per_tab(48), 4);
+        assert_eq!(state.max_panes_per_tab(24), 2);
+        assert_eq!(state.max_panes_per_tab(12), 1);
+        assert_eq!(state.max_panes_per_tab(6), 1);
+    }
+
+    #[test]
+    fn test_total_tabs() {
+        let state = make_state(&["a", "b", "c", "d", "e", "f", "g", "h", "i", "j"], 0);
+        assert_eq!(state.total_tabs(48), 3);
+        assert_eq!(state.total_tabs(24), 5);
+        assert_eq!(state.total_tabs(120), 1);
+    }
+
+    #[test]
+    fn test_total_tabs_empty() {
+        let state = TuiState::new();
+        assert_eq!(state.total_tabs(48), 1);
+    }
+
+    #[test]
+    fn test_visible_indices_first_tab() {
+        let state = make_state(&["a", "b", "c", "d", "e", "f", "g", "h"], 0);
+        let vis = state.visible_indices(48);
+        assert_eq!(vis, vec![0, 1, 2, 3]);
+    }
+
+    #[test]
+    fn test_visible_indices_second_tab() {
+        let mut state = make_state(&["a", "b", "c", "d", "e", "f", "g", "h"], 0);
+        state.current_tab = 1;
+        let vis = state.visible_indices(48);
+        assert_eq!(vis, vec![4, 5, 6, 7]);
+    }
+
+    #[test]
+    fn test_visible_indices_last_tab_partial() {
+        let mut state = make_state(&["a", "b", "c", "d", "e"], 0);
+        state.current_tab = 1;
+        let vis = state.visible_indices(48);
+        assert_eq!(vis, vec![4]);
+    }
+
+    #[test]
+    fn test_visible_indices_expanded_overrides_tabs() {
+        let mut state = make_state(&["a", "b", "c", "d", "e"], 0);
+        state.selected = 3;
+        state.expanded = true;
+        let vis = state.visible_indices(48);
+        assert_eq!(vis, vec![3]);
+    }
+
+    #[test]
+    fn test_ensure_selected_visible() {
+        let mut state = make_state(&["a", "b", "c", "d", "e", "f", "g", "h"], 0);
+        state.selected = 5;
+        state.ensure_selected_visible(48);
+        assert_eq!(state.current_tab, 1);
+    }
+
+    #[test]
+    fn test_tab_navigation_left_right() {
+        let running = Arc::new(AtomicBool::new(true));
+        let closed = Arc::new(Mutex::new(HashSet::new()));
+        let mut state = make_state(&["a", "b", "c", "d", "e", "f", "g", "h"], 0);
+
+        handle_normal_mode(KeyCode::Right, KeyModifiers::NONE, &mut state, &running, &closed, 20, 48);
+        assert_eq!(state.current_tab, 1);
+        assert_eq!(state.selected, 4);
+
+        handle_normal_mode(KeyCode::Left, KeyModifiers::NONE, &mut state, &running, &closed, 20, 48);
+        assert_eq!(state.current_tab, 0);
+        assert_eq!(state.selected, 0);
+
+        handle_normal_mode(KeyCode::Left, KeyModifiers::NONE, &mut state, &running, &closed, 20, 48);
+        assert_eq!(state.current_tab, 0);
+    }
+
+    #[test]
+    fn test_tab_auto_switch_on_cycle() {
+        let running = Arc::new(AtomicBool::new(true));
+        let closed = Arc::new(Mutex::new(HashSet::new()));
+        let mut state = make_state(&["a", "b", "c", "d", "e", "f", "g", "h"], 0);
+        state.selected = 3;
+
+        handle_normal_mode(KeyCode::Tab, KeyModifiers::NONE, &mut state, &running, &closed, 20, 48);
+        assert_eq!(state.selected, 4);
+        assert_eq!(state.current_tab, 1);
+    }
+
+    #[test]
+    fn test_few_panes_no_tabs() {
+        let state = make_state(&["a", "b"], 0);
+        assert_eq!(state.total_tabs(48), 1);
+        assert_eq!(state.visible_indices(48), vec![0, 1]);
     }
 }
