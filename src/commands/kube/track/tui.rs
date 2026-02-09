@@ -10,7 +10,7 @@ use ratatui::{
     layout::{Constraint, Layout, Margin, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span, Text},
-    widgets::{Block, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState},
+    widgets::{Block, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState, Tabs},
     DefaultTerminal,
 };
 use regex::Regex;
@@ -35,6 +35,13 @@ const TUI_COLORS: &[Color] = &[
     Color::LightGreen,
     Color::LightMagenta,
 ];
+
+const TAB_BAR_BG: Color = Color::Rgb(28, 31, 42);
+const TAB_INACTIVE: Color = Color::Rgb(100, 105, 130);
+const TAB_ACTIVE: Color = Color::Rgb(0, 230, 255);
+const TAB_ACTIVE_BG: Color = Color::Rgb(45, 55, 75);
+const TAB_DIVIDER: Color = Color::Rgb(55, 60, 80);
+const TAB_SEPARATOR: Color = Color::Rgb(0, 180, 220);
 
 enum TrackEvent {
     LogLine { pod_key: String, text: String },
@@ -94,6 +101,7 @@ struct TuiState {
     panes: Vec<PodPane>,
     pane_index: HashMap<String, usize>,
     pane_rects: Vec<(usize, Rect)>,
+    tab_rects: Vec<(usize, Rect)>,
     last_click: Option<(usize, std::time::Instant)>,
 }
 
@@ -109,6 +117,7 @@ impl TuiState {
             panes: Vec::new(),
             pane_index: HashMap::new(),
             pane_rects: vec![],
+            tab_rects: vec![],
             last_click: None,
         }
     }
@@ -284,29 +293,119 @@ fn run_tui(
         }
 
         let term_size = terminal.size()?;
-        let available_height = term_size.height.saturating_sub(1);
+        let mut available_height = term_size.height.saturating_sub(1);
+        let mut total_tabs = state.total_tabs(available_height);
+        const TAB_BAR_HEIGHT: u16 = 2;
+        let has_tab_bar = total_tabs > 1;
+        if has_tab_bar {
+            available_height = available_height.saturating_sub(TAB_BAR_HEIGHT);
+            total_tabs = state.total_tabs(available_height);
+        }
+
         {
             let main_layout =
                 Layout::vertical([Constraint::Min(0), Constraint::Length(1)]).split(term_size.into());
+            let content_top = if has_tab_bar {
+                main_layout[0].y + TAB_BAR_HEIGHT
+            } else {
+                main_layout[0].y
+            };
+            let content_height = main_layout[0].height
+                - if has_tab_bar {
+                    TAB_BAR_HEIGHT
+                } else {
+                    0
+                };
+            let content_area = Rect {
+                x: main_layout[0].x,
+                y: content_top,
+                width: main_layout[0].width,
+                height: content_height,
+            };
             let visible_indices = state.visible_indices(available_height);
             let vis_count = visible_indices.len().max(1) as u32;
             let constraints: Vec<Constraint> = visible_indices
                 .iter()
                 .map(|_| Constraint::Ratio(1, vis_count))
                 .collect();
-            let chunks = Layout::vertical(constraints).split(main_layout[0]);
+            let chunks = Layout::vertical(constraints).split(content_area);
             state.pane_rects = visible_indices
                 .iter()
                 .zip(chunks.iter())
                 .map(|(&i, r)| (i, *r))
                 .collect();
-        }
 
-        let total_tabs = state.total_tabs(available_height);
+            if has_tab_bar {
+                const TAB_LABEL_WIDTH: u16 = 10;
+                let tab_area = Rect {
+                    x: main_layout[0].x + TAB_LABEL_WIDTH,
+                    y: main_layout[0].y,
+                    width: main_layout[0].width.saturating_sub(TAB_LABEL_WIDTH),
+                    height: 1,
+                };
+                let constraints: Vec<Constraint> = (0..total_tabs)
+                    .map(|_| Constraint::Ratio(1, total_tabs as u32))
+                    .collect();
+                let tab_chunks = Layout::horizontal(constraints).split(tab_area);
+                state.tab_rects = (0..total_tabs)
+                    .zip(tab_chunks.iter())
+                    .map(|(i, r)| (i, *r))
+                    .collect();
+            } else {
+                state.tab_rects.clear();
+            }
+        }
 
         terminal.draw(|frame| {
             let main_chunks = Layout::vertical([Constraint::Min(0), Constraint::Length(1)])
                 .split(frame.area());
+
+            let (content_area, tab_bar_chunks) = if has_tab_bar {
+                let inner = Layout::vertical([
+                    Constraint::Length(1),
+                    Constraint::Length(1),
+                    Constraint::Min(0),
+                ])
+                .split(main_chunks[0]);
+                (inner[2], Some((inner[0], inner[1])))
+            } else {
+                (main_chunks[0], None)
+            };
+
+            if let Some((tab_row, tab_sep)) = tab_bar_chunks {
+                let tab_h = Layout::horizontal([
+                    Constraint::Length(10),
+                    Constraint::Min(0),
+                ])
+                .split(tab_row);
+                let label = Paragraph::new(Line::from(Span::styled(
+                    " Groups ",
+                    Style::default()
+                        .fg(TAB_DIVIDER)
+                        .add_modifier(Modifier::DIM),
+                )));
+                frame.render_widget(label, tab_h[0]);
+                let tab_labels: Vec<Line> = (1..=total_tabs)
+                    .map(|i| Line::from(format!("  {}  ", i)))
+                    .collect();
+                let tabs_widget = Tabs::new(tab_labels)
+                    .select(state.current_tab)
+                    .style(Style::default().fg(TAB_INACTIVE).bg(TAB_BAR_BG))
+                    .highlight_style(
+                        Style::default()
+                            .fg(TAB_ACTIVE)
+                            .bg(TAB_ACTIVE_BG)
+                            .add_modifier(Modifier::BOLD),
+                    )
+                    .divider(Span::styled(" ▐ ", Style::default().fg(TAB_DIVIDER)));
+                frame.render_widget(tabs_widget, tab_h[1]);
+                let sep_line = "─".repeat(tab_row.width as usize);
+                let sep = Paragraph::new(Line::from(Span::styled(
+                    sep_line,
+                    Style::default().fg(TAB_SEPARATOR),
+                )));
+                frame.render_widget(sep, tab_sep);
+            }
 
             if !state.panes.is_empty() {
                 let visible_indices = state.visible_indices(available_height);
@@ -320,7 +419,7 @@ fn run_tui(
                     .iter()
                     .map(|_| Constraint::Ratio(1, vis_count))
                     .collect();
-                let chunks = Layout::vertical(constraints).split(main_chunks[0]);
+                let chunks = Layout::vertical(constraints).split(content_area);
 
                 for (ci, (i, pane)) in visible.iter().enumerate() {
                     let is_selected = *i == state.selected;
@@ -554,6 +653,27 @@ fn run_tui(
 fn handle_mouse_event(mouse: crossterm::event::MouseEvent, state: &mut TuiState) {
     let col = mouse.column;
     let row = mouse.row;
+
+    let tab_hit = state
+        .tab_rects
+        .iter()
+        .find(|(_, rect)| {
+            col >= rect.x
+                && col < rect.x + rect.width
+                && row >= rect.y
+                && row < rect.y + rect.height
+        })
+        .map(|(i, r)| (*i, *r));
+
+    if let Some((tab_idx, _)) = tab_hit {
+        if matches!(mouse.kind, MouseEventKind::Down(MouseButton::Left)) {
+            state.current_tab = tab_idx;
+            let total_tabs = state.tab_rects.len().max(1);
+            let per_tab = state.panes.len().div_ceil(total_tabs).max(1);
+            state.selected = (tab_idx * per_tab).min(state.panes.len().saturating_sub(1));
+            return;
+        }
+    }
 
     let hit = state
         .pane_rects

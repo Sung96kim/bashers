@@ -117,7 +117,7 @@ fn spawn_log_follower(
             }
 
             let result = Command::new("kubectl")
-                .args(["logs", "-f", "--tail=1000", &name, "-n", &ns])
+                .args(["logs", "-f", "--tail=1000", "--timestamps", &name, "-n", &ns])
                 .stdout(Stdio::piped())
                 .stderr(Stdio::piped())
                 .spawn();
