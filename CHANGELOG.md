@@ -1,5 +1,21 @@
 # CHANGELOG
 
+## [0.5.0](https://github.com/Sung96kim/bashers/compare/v0.4.14...v0.5.0) - 2026-02-10
+
+### Added
+
+- `kube kmg`: spinner with completion message "✓ Retrieved images for <pattern>"
+- `scripts/install.sh`: runs `cargo install bashers` and adds `~/.cargo/bin` to shell config when needed (e.g. pyenv)
+- `scripts/local.sh`: run local build via `cargo run --bin bashers -- <command>`
+
+### Changed
+
+- `scripts/setup-local.sh`: only check, build, test so `./scripts/local.sh` works; removed release archive and install steps
+- `setup-local.sh`: version in message now derived from Cargo.toml via `cargo pkgid`
+
+### Fixed
+
+- `kube kmg`: spinner no longer interleaves with output; results collected then printed after spinner clears
 
 ## [0.4.15](https://github.com/Sung96kim/bashers/compare/v0.4.14...v0.4.15) - 2026-02-10
 
