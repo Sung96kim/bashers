@@ -19,6 +19,19 @@ pub fn create_spinner() -> ProgressBar {
     pb
 }
 
+pub fn finish_with_message(pb: &ProgressBar, message: &str) {
+    pb.finish_and_clear();
+    let mut stderr = StandardStream::stderr(if atty::is(atty::Stream::Stderr) {
+        ColorChoice::Auto
+    } else {
+        ColorChoice::Never
+    });
+    let _ = stderr.set_color(ColorSpec::new().set_fg(Some(Color::Green)));
+    let _ = write!(stderr, "✓ {}", message);
+    let _ = stderr.reset();
+    let _ = writeln!(stderr);
+}
+
 pub fn should_show_spinner() -> bool {
     // Check if spinner is disabled via environment variable
     if std::env::var("NO_SPINNER").is_ok() {

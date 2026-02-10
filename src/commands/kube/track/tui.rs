@@ -36,18 +36,19 @@ const TUI_COLORS: &[Color] = &[
     Color::LightMagenta,
 ];
 
-fn vibrant_title_color(base: Color) -> Color {
-    match base {
-        Color::Cyan => Color::LightCyan,
-        Color::Green => Color::LightGreen,
-        Color::Magenta => Color::LightMagenta,
-        Color::Yellow => Color::LightYellow,
-        Color::Blue => Color::LightBlue,
-        Color::LightCyan => Color::Rgb(0x7f, 0xff, 0xff),
-        Color::LightGreen => Color::Rgb(0x7f, 0xff, 0x7f),
-        Color::LightMagenta => Color::Rgb(0xff, 0x7f, 0xff),
-        _ => Color::White,
-    }
+const TITLE_COLORS: &[Color] = &[
+    Color::Rgb(0x00, 0xee, 0xff),
+    Color::Rgb(0x00, 0xff, 0x88),
+    Color::Rgb(0xff, 0x66, 0xff),
+    Color::Rgb(0xff, 0xee, 0x00),
+    Color::Rgb(0x44, 0xaa, 0xff),
+    Color::Rgb(0x66, 0xff, 0xff),
+    Color::Rgb(0x66, 0xff, 0x99),
+    Color::Rgb(0xff, 0x99, 0xff),
+];
+
+fn title_color_for_pane(pane_index: usize) -> Color {
+    TITLE_COLORS[pane_index % TITLE_COLORS.len()]
 }
 
 enum TrackEvent {
@@ -354,10 +355,10 @@ fn run_tui(
                         format!(" {} [SCROLLED] ", pane.key)
                     };
 
-                    let title_color = vibrant_title_color(pane.color);
+                    let title_color = title_color_for_pane(*i);
                     let title_style = if !pane.is_following() {
                         Style::default()
-                            .fg(Color::LightYellow)
+                            .fg(Color::Rgb(0xff, 0xcc, 0x00))
                             .add_modifier(Modifier::BOLD)
                     } else {
                         Style::default()

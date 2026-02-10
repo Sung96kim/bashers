@@ -11,6 +11,20 @@ Requires [Rust](https://rustup.rs/) (cargo).
 cargo install bashers
 ```
 
+Or use the install script (runs `cargo install bashers` and adds `~/.cargo/bin` to your shell config if needed, e.g. for pyenv):
+
+```bash
+curl -sSf https://raw.githubusercontent.com/Sung96kim/bashers/main/scripts/install.sh | sh
+```
+
+From a clone:
+
+```bash
+./scripts/install.sh
+```
+
+Use `--no-path` to skip modifying your profile.
+
 Both `bashers` and `bs` are installed to `~/.cargo/bin`. Ensure `~/.cargo/bin` is in your PATH and that it comes **before** any other path that might provide a different `bashers` (e.g. pyenv shims):
 
 ```bash
