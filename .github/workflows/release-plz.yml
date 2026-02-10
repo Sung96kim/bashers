@@ -1,0 +1,116 @@
+name: Release-plz
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+
+  release-plz-release:
+    name: Release-plz release
+    runs-on: ubuntu-latest
+    environment: Rust Push
+    permissions:
+      contents: write
+    steps:
+      - &checkout
+        name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - &install-rust
+        name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+      - name: Run release-plz
+        id: release-plz
+        uses: release-plz/action@v0.5
+        with:
+          command: release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+      - name: Checkout release tag
+        if: steps.release-plz.outputs.releases_created == 'true'
+        run: |
+          git fetch origin tag ${{ fromJSON(steps.release-plz.outputs.releases)[0].tag }}
+          git checkout ${{ fromJSON(steps.release-plz.outputs.releases)[0].tag }}
+      - name: Build for Linux x86_64
+        if: steps.release-plz.outputs.releases_created == 'true'
+        run: cargo build --release
+      - name: Create release archive
+        if: steps.release-plz.outputs.releases_created == 'true'
+        run: |
+          chmod +x target/release/bashers target/release/bs
+          tar czf bashers-linux-x86_64.tar.gz -C target/release bashers bs
+      - name: Prepare install script
+        if: steps.release-plz.outputs.releases_created == 'true'
+        run: |
+          sed -i "s|Sung96kim/bashers|${{ github.repository }}|g" scripts/install.sh
+          chmod +x scripts/install.sh
+      - name: Create GitHub Release
+        if: steps.release-plz.outputs.releases_created == 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            bashers-linux-x86_64.tar.gz
+            scripts/install.sh
+          tag_name: ${{ fromJSON(steps.release-plz.outputs.releases)[0].tag }}
+          name: v${{ fromJSON(steps.release-plz.outputs.releases)[0].version }}
+          body: |
+            Release v${{ fromJSON(steps.release-plz.outputs.releases)[0].version }}
+
+            ## Installation
+
+            ### Quick Install (Recommended)
+            ```bash
+            curl -LsSf https://raw.githubusercontent.com/${{ github.repository }}/main/scripts/install.sh | sh
+            ```
+
+            ### From crates.io
+            ```bash
+            cargo install bashers
+            ```
+
+            ### Manual Installation
+            ```bash
+            tar xzf bashers-linux-x86_64.tar.gz
+            sudo mv bashers /usr/local/bin/
+            ```
+
+            ### From Source
+            ```bash
+            cargo install --git https://github.com/${{ github.repository }}.git --tag ${{ fromJSON(steps.release-plz.outputs.releases)[0].tag }}
+            ```
+
+  release-plz-pr:
+    name: Release-plz PR
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    concurrency:
+      group: release-plz-${{ github.ref }}
+      cancel-in-progress: false
+    steps:
+      - *checkout
+      - *install-rust
+      - name: Run release-plz
+        uses: release-plz/action@v0.5
+        with:
+          command: release-pr
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
