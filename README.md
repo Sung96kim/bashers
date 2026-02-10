@@ -1,214 +1,54 @@
 # Bashers
-Installable CLI command helpers (written in Rust)
 
-## Installation
+CLI command helpers (Rust). Install: `cargo install bashers`. Both `bashers` and `bs` go to `~/.cargo/bin`; ensure it’s in PATH before pyenv/shims.
 
-Requires [Rust](https://rustup.rs/) (cargo).
-
-### From crates.io (recommended)
-
-```bash
-cargo install bashers
-```
-
-Or use the install script (runs `cargo install bashers` and adds `~/.cargo/bin` to your shell config if needed, e.g. for pyenv):
-
-```bash
-curl -sSf https://raw.githubusercontent.com/Sung96kim/bashers/main/scripts/install.sh | sh
-```
-
-From a clone:
-
-```bash
-./scripts/install.sh
-```
-
-Use `--no-path` to skip modifying your profile.
-
-Both `bashers` and `bs` are installed to `~/.cargo/bin`. Ensure `~/.cargo/bin` is in your PATH and that it comes **before** any other path that might provide a different `bashers` (e.g. pyenv shims):
-
-```bash
-export PATH="$HOME/.cargo/bin:$PATH"
-```
-
-### From source
-
-```bash
-cargo install --path .
-```
-
-Or from git:
-
-```bash
-cargo install --git https://github.com/Sung96kim/bashers.git
-```
-
-### Manual build
-
-```bash
-git clone https://github.com/Sung96kim/bashers.git
-cd bashers
-cargo build --release
-# Binary at target/release/bashers; copy to ~/.cargo/bin/ or /usr/local/bin/
-```
+**Install from repo:** `./scripts/install.sh` (or `curl -sSf https://raw.githubusercontent.com/Sung96kim/bashers/main/scripts/install.sh | sh`). Use `--no-path` to skip profile changes.
 
 ## Usage
 
-Both `bashers` and `bs` are available. Run `bashers` or `bashers --help` for the full command list.
-
 ```bash
-bashers update              # update deps (optional: package name with fuzzy match)
-bashers setup               # install project deps (--frozen, --rm, --dry-run)
-bashers show                # list installed packages
-bashers gh                  # git home: checkout default branch, pull, fetch (--dry-run)
-bashers kube kmg <pattern>   # describe pods, show Image lines
+bashers update              # update deps (fuzzy match optional)
+bashers setup               # install deps (--frozen, --rm, --dry-run)
+bashers show                # list packages
+bashers git sync            # checkout default, pull, fetch (--current = current branch only); bs sync works
+bashers kube kmg <pattern>  # pod describe + Image lines
 bashers kube track <pattern> # follow logs (--err-only, --simple)
-bashers self update         # update bashers to latest
-bashers version             # print version
+bashers self update         # upgrade bashers
+bashers version
 ```
-
-Verify you're running the Rust binary (e.g. not a pyenv shim):
-
-```bash
-which bashers   # expect ~/.cargo/bin/bashers
-which bs        # expect ~/.cargo/bin/bs
-```
-
-## Commands
 
 | Command | Description |
 |---------|-------------|
-| **update** | Update Python dependencies (uv/poetry) with fuzzy package matching |
-| **setup** | Install project dependencies (uv/poetry) |
-| **show** | List installed packages (uv/poetry) |
-| **gh** | Git home: checkout default branch, pull, fetch all |
-| **kube** | Kubernetes helpers: `kmg` (describe pods / Image), `track` (follow logs) |
-| **self** | Self-management: `update` (upgrade bashers) |
+| **update** | Update deps (uv/poetry), fuzzy match |
+| **setup** | Install project deps |
+| **show** | List installed packages |
+| **git** | `sync` (default branch or --current) |
+| **kube** | `kmg`, `track` |
+| **self** | `update` |
 | **version** | Print version |
 
-Use `bashers <command> --help` for options.
+`bashers <cmd> --help` for options.
 
 ## Features
 
-- **Fuzzy matching** - Find packages with partial names (e.g., `bashers update indi` matches `indicodata-core`)
-- **fzf integration** - Interactive selection when multiple matches found
-- **uv & poetry support** - Works with both package managers
-- **Color output** - Beautiful colored terminal output
-- **Dry-run mode** - Preview commands before executing
+Fuzzy package matching, fzf when multiple matches, uv & poetry, color output, dry-run.
 
 ## Development
 
-### Prerequisites
+**Build:** `cargo build` / `cargo build --release`
 
-- Rust and Cargo installed ([rustup.rs](https://rustup.rs/))
-- For testing: `cargo-tarpaulin` (optional, for coverage)
+**Test:** `cargo test` (unit: `cargo test --lib`; one test: `cargo test test_fuzzy_match_exact`)
 
-### Building
+**Quality:** `cargo fmt` · `cargo clippy` · `cargo fmt --check` · `cargo clippy -- -D warnings`
 
-```bash
-# Debug build
-cargo build
+**Run:** `cargo run --quiet -- <cmd>` or `./target/debug/bashers <cmd>`. Optional: `NO_SPINNER=1` to disable spinner.
 
-# Release build (optimized)
-cargo build --release
+**Coverage:** `cargo install cargo-tarpaulin --locked` then `cargo tarpaulin --out Xml --output-dir coverage --timeout 120`
 
-# Binary location
-# Debug: target/debug/bashers
-# Release: target/release/bashers
-```
-
-### Running
-
-```bash
-# Run directly with cargo (quiet mode to suppress build output)
-cargo run --quiet -- update --dry-run
-cargo run --quiet -- setup --dry-run
-cargo run --quiet -- show
-cargo run --quiet -- gh --dry-run
-
-# Or use the built binary (recommended for testing)
-./target/debug/bashers update --dry-run
-./target/release/bashers setup --dry-run
-```
-
-### Testing
-
-```bash
-# Run all tests
-cargo test
-
-# Run only unit tests
-cargo test --lib
-
-# Run only integration tests
-cargo test --test integration_test
-
-# Run with output
-cargo test -- --nocapture
-
-# Run specific test
-cargo test --lib test_fuzzy_match_exact
-```
-
-### Code Coverage
-
-```bash
-# Install cargo-tarpaulin
-cargo install cargo-tarpaulin --locked
-
-# Generate coverage report
-cargo tarpaulin --out Xml --output-dir coverage --timeout 120
-
-# View coverage (if HTML generated)
-open coverage/tarpaulin-report.html
-```
-
-### Code Quality
-
-```bash
-# Format code
-cargo fmt
-
-# Check formatting
-cargo fmt --check
-
-# Lint with clippy
-cargo clippy
-
-# Lint with strict warnings
-cargo clippy -- -D warnings
-```
-
-### Development Workflow
-
-```bash
-# 1. Make changes
-# 2. Check code compiles
-cargo check
-
-# 3. Run tests
-cargo test
-
-# 4. Format code
-cargo fmt
-
-# 5. Check for issues
-cargo clippy
-
-# 6. Build release
-cargo build --release
-```
-
-## Adding New Commands
-
-1. Add a new command module in `src/commands/`
-2. Implement the command function
-3. Add the command variant to `src/cli.rs`
-4. Wire it up in `src/main.rs`
-5. Rebuild: `cargo build`
+**New command:** Add module under `src/commands/` (or `src/commands/<group>/`), add variant in `src/cli.rs`, wire in `src/main.rs`, then `cargo build`.
 
 ## Releasing
 
-See [RELEASING.md](RELEASING.md) for instructions on creating a new release.
+Releases are automated with **release-plz** on push to main. Use [Conventional Commits](https://www.conventionalcommits.org/): `feat:` (minor), `fix:` (patch), `feat!:` or `BREAKING CHANGE:` (major). Push to main → version/changelog PR, merge → publish to crates.io and GitHub Release. First time: publish once with `cargo publish` so release-plz knows the current version.
 
-**Quick summary:** Releases are automated via release-plz on push to main: version/changelog PR, merge, then publish to crates.io and create a GitHub Release.
+Manual: bump version in `Cargo.toml`, tag `vX.Y.Z`, push tag; workflow builds and creates the GitHub Release.

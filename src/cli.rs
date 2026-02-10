@@ -38,11 +38,10 @@ pub enum Commands {
         /// Filter patterns
         patterns: Vec<String>,
     },
-    /// Git home: checkout default branch, pull, fetch all
-    Gh {
-        /// Print commands without executing
-        #[arg(long)]
-        dry_run: bool,
+    /// Git helper commands
+    Git {
+        #[command(subcommand)]
+        command: GitCommands,
     },
     /// Kubernetes helper commands
     Kube {
@@ -59,7 +58,20 @@ pub enum Commands {
     },
 }
 
-pub const TOPLEVEL_ALIAS_PARENTS: &[&str] = &["kube"];
+pub const TOPLEVEL_ALIAS_PARENTS: &[&str] = &["git", "kube"];
+
+#[derive(Subcommand)]
+pub enum GitCommands {
+    /// Sync repo: checkout default branch, pull, fetch (use --current to sync current branch only)
+    Sync {
+        /// Sync current branch only (pull + fetch, no checkout)
+        #[arg(long)]
+        current: bool,
+        /// Print commands without executing
+        #[arg(long)]
+        dry_run: bool,
+    },
+}
 
 #[derive(Subcommand)]
 pub enum KubeCommands {

@@ -1,4 +1,4 @@
-pub mod gh;
+pub mod git;
 pub mod help;
 pub mod kube;
 pub mod self_cmd;

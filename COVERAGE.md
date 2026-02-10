@@ -48,7 +48,7 @@ open coverage/tarpaulin-report.html
 | `utils/project.rs` | 96.2% | 25/26 | — |
 | `commands/setup.rs` | 75.3% | 55/73 | — |
 | `utils/packages.rs` | 85.0% | 79/93 | — |
-| `commands/gh.rs` | 7.1% | 4/56 | — |
+| `commands/git/sync.rs` | 7.1% | 4/56 | — |
 | `commands/show.rs` | 9.7% | 6/62 | — |
 | `commands/update.rs` | 25.0% | 16/64 | — |
 | `commands/self_cmd/update.rs` | 3.9% | 3/77 | — |
@@ -62,7 +62,7 @@ Coverage is automatically calculated in CI using `cargo-tarpaulin`.
 
 To improve coverage:
 
-1. Add unit tests for command modules (especially `gh.rs`, `show.rs`, and `self_cmd/update.rs`)
+1. Add unit tests for command modules (especially `git/sync.rs`, `show.rs`, and `self_cmd/update.rs`)
 2. Add tests for error paths and edge cases
 3. Mock external commands for better testability (using dependency injection)
 4. Test parsing logic for git commands and GitHub API responses

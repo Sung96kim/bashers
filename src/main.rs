@@ -36,9 +36,11 @@ fn main() -> Result<()> {
         Some(bashers::cli::Commands::Show { patterns }) => {
             bashers::commands::show::run(&patterns)?;
         }
-        Some(bashers::cli::Commands::Gh { dry_run }) => {
-            bashers::commands::gh::run(dry_run)?;
-        }
+        Some(bashers::cli::Commands::Git { command }) => match command {
+            bashers::cli::GitCommands::Sync { current, dry_run } => {
+                bashers::commands::git::sync::run(current, dry_run)?;
+            }
+        },
         Some(bashers::cli::Commands::Kube { command }) => match command {
             bashers::cli::KubeCommands::Kmg { pattern } => {
                 bashers::commands::kube::kmg::run(&pattern)?;
