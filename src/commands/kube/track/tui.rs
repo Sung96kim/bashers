@@ -36,6 +36,20 @@ const TUI_COLORS: &[Color] = &[
     Color::LightMagenta,
 ];
 
+fn vibrant_title_color(base: Color) -> Color {
+    match base {
+        Color::Cyan => Color::LightCyan,
+        Color::Green => Color::LightGreen,
+        Color::Magenta => Color::LightMagenta,
+        Color::Yellow => Color::LightYellow,
+        Color::Blue => Color::LightBlue,
+        Color::LightCyan => Color::Rgb(0x7f, 0xff, 0xff),
+        Color::LightGreen => Color::Rgb(0x7f, 0xff, 0x7f),
+        Color::LightMagenta => Color::Rgb(0xff, 0x7f, 0xff),
+        _ => Color::White,
+    }
+}
+
 enum TrackEvent {
     LogLine { pod_key: String, text: String },
     NewPod { pod: PodInfo, alive: Arc<AtomicBool> },
@@ -340,13 +354,14 @@ fn run_tui(
                         format!(" {} [SCROLLED] ", pane.key)
                     };
 
+                    let title_color = vibrant_title_color(pane.color);
                     let title_style = if !pane.is_following() {
                         Style::default()
-                            .fg(Color::Yellow)
+                            .fg(Color::LightYellow)
                             .add_modifier(Modifier::BOLD)
                     } else {
                         Style::default()
-                            .fg(pane.color)
+                            .fg(title_color)
                             .add_modifier(Modifier::BOLD)
                     };
 
