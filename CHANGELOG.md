@@ -1,6 +1,12 @@
 # CHANGELOG
 
 
+## [0.4.15](https://github.com/Sung96kim/bashers/compare/v0.4.14...v0.4.15) - 2026-02-10
+
+### Added
+
+- install script, kmg spinner
+
 ## [0.4.14](https://github.com/Sung96kim/bashers/compare/v0.4.13...v0.4.14) - 2026-02-10
 
 ### Fixed
