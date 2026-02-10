@@ -3,40 +3,21 @@ Installable CLI command helpers (written in Rust)
 
 ## Installation
 
-### Quick Install (Recommended)
+Requires [Rust](https://rustup.rs/) (cargo).
 
-Install with a single command:
-
-```bash
-curl -LsSf https://raw.githubusercontent.com/Sung96kim/bashers/main/scripts/install.sh | sh
-```
-
-Or specify a version:
+### From crates.io (recommended)
 
 ```bash
-curl -LsSf https://raw.githubusercontent.com/Sung96kim/bashers/main/scripts/install.sh | sh -s -- 0.4.9
+cargo install bashers
 ```
 
-The script will:
-- Download the Linux x86_64 binary from GitHub releases
-- Install to `~/.local/bin/bashers` (and `bs` alias)
-- Add to PATH if needed
-
-**Note:** Linux x86_64 only. For other platforms/architectures, use pip or build from source.
-
-### pip (PyPI)
+Both `bashers` and `bs` are installed to `~/.cargo/bin`. Ensure `~/.cargo/bin` is in your PATH and that it comes **before** any other path that might provide a different `bashers` (e.g. pyenv shims):
 
 ```bash
-pip install bashers
+export PATH="$HOME/.cargo/bin:$PATH"
 ```
 
-Or with uv:
-
-```bash
-uv pip install bashers
-```
-
-### From Source
+### From source
 
 ```bash
 cargo install --path .
@@ -48,50 +29,50 @@ Or from git:
 cargo install --git https://github.com/Sung96kim/bashers.git
 ```
 
-Both `bashers` and `bs` binaries are installed.
-
-### Manual Build
+### Manual build
 
 ```bash
 git clone https://github.com/Sung96kim/bashers.git
 cd bashers
 cargo build --release
-# Binary at target/release/bashers
-# Copy to ~/.local/bin/ or /usr/local/bin/
+# Binary at target/release/bashers; copy to ~/.cargo/bin/ or /usr/local/bin/
 ```
 
 ## Usage
 
-Both `bashers` and `bs` are available (e.g. `bs update`, `bashers update`).
+Both `bashers` and `bs` are available. Run `bashers` or `bashers --help` for the full command list.
 
 ```bash
-bashers update   # or: bs update
-bashers update requests
-bashers show
-bashers show requests
-bashers setup
-bashers setup --frozen
-bashers setup --rm
-bashers gh
-bashers gh --dry-run
+bashers update              # update deps (optional: package name with fuzzy match)
+bashers setup               # install project deps (--frozen, --rm, --dry-run)
+bashers show                # list installed packages
+bashers gh                  # git home: checkout default branch, pull, fetch (--dry-run)
+bashers kube kmg <pattern>   # describe pods, show Image lines
+bashers kube track <pattern> # follow logs (--err-only, --simple)
+bashers self update         # update bashers to latest
+bashers version             # print version
 ```
 
-Verify the command is on PATH:
+Verify you're running the Rust binary (e.g. not a pyenv shim):
 
 ```bash
-which bashers
-which bs
+which bashers   # expect ~/.cargo/bin/bashers
+which bs        # expect ~/.cargo/bin/bs
 ```
-
-The binary will be installed to `~/.cargo/bin/bashers` by default (when using `cargo install`).
-Make sure `~/.cargo/bin` is in your PATH.
 
 ## Commands
 
-- **update** - Update Python dependencies (uv/poetry) with fuzzy package matching
-- **setup** - Install project dependencies (uv/poetry)
-- **show** - List installed packages (uv/poetry)
-- **gh** - Git home: checkout default branch, pull, fetch all
+| Command | Description |
+|---------|-------------|
+| **update** | Update Python dependencies (uv/poetry) with fuzzy package matching |
+| **setup** | Install project dependencies (uv/poetry) |
+| **show** | List installed packages (uv/poetry) |
+| **gh** | Git home: checkout default branch, pull, fetch all |
+| **kube** | Kubernetes helpers: `kmg` (describe pods / Image), `track` (follow logs) |
+| **self** | Self-management: `update` (upgrade bashers) |
+| **version** | Print version |
+
+Use `bashers <command> --help` for options.
 
 ## Features
 
@@ -216,4 +197,4 @@ cargo build --release
 
 See [RELEASING.md](RELEASING.md) for instructions on creating a new release.
 
-**Quick summary:** Push a version tag (e.g., `v0.4.9`) to trigger the automated release workflow, which builds the binary and creates a GitHub Release.
+**Quick summary:** Releases are automated via release-plz on push to main: version/changelog PR, merge, then publish to crates.io and create a GitHub Release.

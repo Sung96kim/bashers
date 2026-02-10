@@ -101,22 +101,12 @@ After pushing the tag:
 1. Check GitHub Actions: https://github.com/Sung96kim/bashers/actions
 2. The "Release" workflow should run automatically
 3. Once complete, check Releases: https://github.com/Sung96kim/bashers/releases
-4. The release should include:
-   - `bashers-linux-x86_64.tar.gz` (the binary archive)
-   - `scripts/install.sh` (the installation script)
+4. The release is published to crates.io and a GitHub Release is created with changelog.
 
-### 5. Test Installation
-
-Test that users can install the release:
+### 5. Test installation
 
 ```bash
-curl -LsSf https://raw.githubusercontent.com/Sung96kim/bashers/main/scripts/install.sh | sh
-```
-
-Or test a specific version:
-
-```bash
-curl -LsSf https://raw.githubusercontent.com/Sung96kim/bashers/main/scripts/install.sh | sh -s -- 0.4.9
+cargo install bashers
 ```
 
 ## Manual Release (Alternative)

@@ -130,7 +130,7 @@ cargo run --quiet -- gh --dry-run
 # Disable spinner
 NO_SPINNER=1 cargo run -- update
 
-# Custom install directory (for scripts/install.sh)
+# Custom install directory
 BASHERS_INSTALL_DIR=/tmp/bin cargo run -- update
 ```
 
