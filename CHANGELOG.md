@@ -1,6 +1,12 @@
 # CHANGELOG
 
 
+## [0.4.14](https://github.com/Sung96kim/bashers/compare/v0.4.13...v0.4.14) - 2026-02-10
+
+### Fixed
+
+- more vibrant colors
+
 ## [0.4.13](https://github.com/Sung96kim/bashers/compare/v0.4.12...v0.4.13) - 2026-02-10
 
 ### Fixed
