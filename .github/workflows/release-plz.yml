@@ -90,40 +90,14 @@ jobs:
         run: |
           sed -i "s|Sung96kim/bashers|${{ github.repository }}|g" scripts/install.sh
           chmod +x scripts/install.sh
-      - name: Create GitHub Release
+      - name: Attach assets to GitHub Release
         if: steps.release-plz.outputs.releases_created == 'true'
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ fromJSON(steps.release-plz.outputs.releases)[0].tag }}
           files: |
             bashers-linux-x86_64.tar.gz
             scripts/install.sh
-          tag_name: ${{ fromJSON(steps.release-plz.outputs.releases)[0].tag }}
-          name: v${{ fromJSON(steps.release-plz.outputs.releases)[0].version }}
-          body: |
-            Release v${{ fromJSON(steps.release-plz.outputs.releases)[0].version }}
-
-            ## Installation
-
-            ### Quick Install (Recommended)
-            ```bash
-            curl -LsSf https://raw.githubusercontent.com/${{ github.repository }}/main/scripts/install.sh | sh
-            ```
-
-            ### From crates.io
-            ```bash
-            cargo install bashers
-            ```
-
-            ### Manual Installation
-            ```bash
-            tar xzf bashers-linux-x86_64.tar.gz
-            sudo mv bashers /usr/local/bin/
-            ```
-
-            ### From Source
-            ```bash
-            cargo install --git https://github.com/${{ github.repository }}.git --tag ${{ fromJSON(steps.release-plz.outputs.releases)[0].tag }}
-            ```
 
   release-plz-pr:
     name: Release-plz PR
