@@ -49,6 +49,6 @@ Fuzzy package matching, fzf when multiple matches, uv & poetry, color output, dr
 
 ## Releasing
 
-Releases are automated with **release-plz** on push to main. Use [Conventional Commits](https://www.conventionalcommits.org/): `feat:` (minor), `fix:` (patch), `feat!:` or `BREAKING CHANGE:` (major). Push to main → version/changelog PR, merge → publish to crates.io and GitHub Release. First time: publish once with `cargo publish` so release-plz knows the current version.
+Releases are automated with **release-plz** on push to main. Use [Conventional Commits](https://www.conventionalcommits.org/): `feat:` (minor), `fix:` (patch), `feat!:` or `BREAKING CHANGE:` (major). Push to main → version/changelog PR, merge → publish to crates.io and GitHub Release. The **tag and GitHub Release are created in the workflow run triggered by the merge** (not the run that opened the PR). Set `CARGO_REGISTRY_TOKEN` if publishing to crates.io. First time: run `cargo publish` once so release-plz knows the current version.
 
 Manual: bump version in `Cargo.toml`, tag `vX.Y.Z`, push tag; workflow builds and creates the GitHub Release.
