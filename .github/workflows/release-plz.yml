@@ -122,6 +122,7 @@ jobs:
       - name: Merge release PR
         if: steps.release-plz.outputs.pr != ''
         env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_JSON: ${{ steps.release-plz.outputs.pr }}
         run: |
           PR_NUMBER=$(echo "$PR_JSON" | jq -r '.number')
