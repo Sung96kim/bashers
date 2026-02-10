@@ -1,9 +1,22 @@
 use anyhow::Result;
-use bashers::cli::BashersApp;
-use clap::Parser;
+use bashers::cli::{BashersApp, TOPLEVEL_ALIAS_PARENTS};
+use clap::{CommandFactory, Parser};
 
 fn main() -> Result<()> {
-    let app = BashersApp::parse();
+    let mut args: Vec<String> = std::env::args().collect();
+    if let Some(name) = args.get(1).map(String::as_str) {
+        let root = BashersApp::command();
+        let is_root_subcommand = root.get_subcommands().any(|c| c.get_name() == name);
+        if !is_root_subcommand {
+            if let Some(parent) = root.get_subcommands().find(|parent| {
+                TOPLEVEL_ALIAS_PARENTS.contains(&parent.get_name())
+                    && parent.get_subcommands().any(|c| c.get_name() == name)
+            }) {
+                args.insert(1, parent.get_name().to_string());
+            }
+        }
+    }
+    let app = BashersApp::parse_from(args);
 
     match app.command {
         Some(bashers::cli::Commands::Update {

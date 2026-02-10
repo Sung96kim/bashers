@@ -59,6 +59,8 @@ pub enum Commands {
     },
 }
 
+pub const TOPLEVEL_ALIAS_PARENTS: &[&str] = &["kube"];
+
 #[derive(Subcommand)]
 pub enum KubeCommands {
     /// Describe pod(s) and show Image lines (pod name regex-matched)
