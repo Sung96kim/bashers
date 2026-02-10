@@ -1,6 +1,12 @@
 # CHANGELOG
 
 
+## [0.4.13](https://github.com/Sung96kim/bashers/compare/v0.4.12...v0.4.13) - 2026-02-10
+
+### Fixed
+
+- release plz pr step depends
+
 ## [0.4.12](https://github.com/Sung96kim/bashers/compare/v0.4.11...v0.4.12) - 2026-02-10
 
 ### Added
