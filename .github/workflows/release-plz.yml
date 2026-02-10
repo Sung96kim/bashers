@@ -138,9 +138,19 @@ jobs:
       - *checkout
       - *install-rust
       - name: Run release-plz
+        id: release-plz
         uses: release-plz/action@v0.5
         with:
           command: release-pr
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+      - name: Merge release PR
+        if: steps.release-plz.outputs.pr != ''
+        env:
+          PR_JSON: ${{ steps.release-plz.outputs.pr }}
+        run: |
+          PR_NUMBER=$(echo "$PR_JSON" | jq -r '.number')
+          if [ -n "$PR_NUMBER" ] && [ "$PR_NUMBER" != 'null' ]; then
+            gh pr merge "$PR_NUMBER" --squash
+          fi
