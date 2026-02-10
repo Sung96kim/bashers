@@ -500,7 +500,14 @@ fn run_tui(
                         .fg(Color::LightRed)
                         .add_modifier(Modifier::BOLD),
                 ));
-                spans.push(Span::styled(": close  ", Style::default().fg(Color::White)));
+                spans.push(Span::styled(": close pane  ", Style::default().fg(Color::White)));
+                spans.push(Span::styled(
+                    "D",
+                    Style::default()
+                        .fg(Color::LightRed)
+                        .add_modifier(Modifier::BOLD),
+                ));
+                spans.push(Span::styled(": close tab  ", Style::default().fg(Color::White)));
                 spans.push(Span::styled(
                     "m",
                     Style::default()
@@ -810,6 +817,27 @@ fn handle_normal_mode(
                     state.selected = state.selected.min(state.panes.len() - 1);
                 }
                 state.ensure_selected_visible(available_height);
+            }
+        }
+        KeyCode::Char('D') => {
+            let per_tab = state.max_panes_per_tab(available_height);
+            let start = state.current_tab * per_tab;
+            let end = (start + per_tab).min(state.panes.len());
+            if start < end {
+                let indices: Vec<usize> = (start..end).rev().collect();
+                for idx in indices {
+                    let pane = state.panes.remove(idx);
+                    pane.alive.store(false, Ordering::SeqCst);
+                    closed_pods.lock().unwrap().insert(pane.key.clone());
+                }
+                state.rebuild_index();
+                if state.panes.is_empty() {
+                    state.selected = 0;
+                    state.current_tab = 0;
+                } else {
+                    state.current_tab = state.current_tab.min(state.total_tabs(available_height).saturating_sub(1));
+                    state.selected = (state.current_tab * per_tab).min(state.panes.len().saturating_sub(1));
+                }
             }
         }
         _ => {}
