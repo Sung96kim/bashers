@@ -1,6 +1,21 @@
 # CHANGELOG
 
 
+## [0.4.11](https://github.com/Sung96kim/bashers/compare/v0.4.10...v0.4.11) - 2026-02-10
+
+### Added
+
+- dependabot
+- Rust, fix releases
+
+### Fixed
+
+- remove unused ci
+
+### Other
+
+- *(deps)* bump actions/checkout from 4 to 6 ([#5](https://github.com/Sung96kim/bashers/pull/5))
+
 ## v0.4.10 (2026-01-15)
 
 ### Bug Fixes
