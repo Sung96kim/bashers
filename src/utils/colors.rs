@@ -53,6 +53,10 @@ impl Colors {
     pub fn println(&mut self, text: &str) -> io::Result<()> {
         writeln!(&mut self.stdout, "{}", text)
     }
+
+    pub fn flush(&mut self) -> io::Result<()> {
+        self.stdout.flush()
+    }
 }
 
 pub fn print_update(package: &str) {

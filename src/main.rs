@@ -54,7 +54,14 @@ fn main() -> Result<()> {
             }
         },
         Some(bashers::cli::Commands::Version) => {
-            println!("bashers {}", env!("CARGO_PKG_VERSION"));
+            println!("v{}", env!("CARGO_PKG_VERSION"));
+        }
+        Some(bashers::cli::Commands::Watch {
+            command,
+            interval,
+            no_diff,
+        }) => {
+            bashers::commands::watch::run(&command, interval, no_diff)?;
         }
         Some(bashers::cli::Commands::SelfCmd { command }) => match command {
             bashers::cli::SelfCommands::Update => {

@@ -50,6 +50,18 @@ pub enum Commands {
     },
     /// Print version
     Version,
+    /// Run a command repeatedly and highlight output changes (use -- to separate options from command)
+    Watch {
+        /// Seconds between runs
+        #[arg(short = 'n', long, default_value = "2")]
+        interval: u64,
+        /// Disable diff highlighting; show raw output only
+        #[arg(long)]
+        no_diff: bool,
+        /// Command and arguments to run (e.g. watch -n 1 -- ls -la)
+        #[arg(required = true, num_args = 1.., value_terminator = "--")]
+        command: Vec<String>,
+    },
     /// Self-management commands
     #[command(name = "self")]
     SelfCmd {
