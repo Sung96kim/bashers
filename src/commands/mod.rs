@@ -1,3 +1,4 @@
+pub mod docker;
 pub mod git;
 pub mod help;
 pub mod kube;

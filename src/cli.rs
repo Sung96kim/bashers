@@ -48,6 +48,11 @@ pub enum Commands {
         #[command(subcommand)]
         command: KubeCommands,
     },
+    /// Docker helper commands
+    Docker {
+        #[command(subcommand)]
+        command: DockerCommands,
+    },
     /// Print version
     Version,
     /// Run a command repeatedly and highlight output changes (use -- to separate options from command)
@@ -70,7 +75,7 @@ pub enum Commands {
     },
 }
 
-pub const TOPLEVEL_ALIAS_PARENTS: &[&str] = &["git", "kube"];
+pub const TOPLEVEL_ALIAS_PARENTS: &[&str] = &["docker", "git", "kube"];
 
 #[derive(Subcommand)]
 pub enum GitCommands {
@@ -82,6 +87,25 @@ pub enum GitCommands {
         /// Print commands without executing
         #[arg(long)]
         dry_run: bool,
+    },
+}
+
+#[derive(Subcommand)]
+pub enum DockerCommands {
+    /// Build an image from a Dockerfile
+    Build {
+        /// Path to the Dockerfile
+        #[arg(short = 'f', long, value_name = "PATH")]
+        dockerfile: std::path::PathBuf,
+        /// Image name and optional tag (e.g. myapp:latest)
+        #[arg(short = 't', long)]
+        tag: Option<String>,
+        /// Do not use cache when building
+        #[arg(long)]
+        no_cache: bool,
+        /// Build context path (default: directory of the Dockerfile)
+        #[arg(short = 'c', long, value_name = "PATH")]
+        context: Option<std::path::PathBuf>,
     },
 }
 

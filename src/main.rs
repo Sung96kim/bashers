@@ -53,6 +53,21 @@ fn main() -> Result<()> {
                 bashers::commands::kube::track::run(&patterns, err_only, simple)?;
             }
         },
+        Some(bashers::cli::Commands::Docker { command }) => match command {
+            bashers::cli::DockerCommands::Build {
+                dockerfile,
+                tag,
+                no_cache,
+                context,
+            } => {
+                bashers::commands::docker::build::run(
+                    &dockerfile,
+                    tag.as_deref(),
+                    no_cache,
+                    context.as_deref(),
+                )?;
+            }
+        },
         Some(bashers::cli::Commands::Version) => {
             println!("v{}", env!("CARGO_PKG_VERSION"));
         }
