@@ -1,5 +1,11 @@
 # CHANGELOG
 
+## [0.8.0](https://github.com/Sung96kim/bashers/compare/v0.7.0...v0.8.0) - 2026-02-11
+
+### Added
+
+- Docker cli ([#17](https://github.com/Sung96kim/bashers/pull/17))
+
 ## [0.7.0](https://github.com/Sung96kim/bashers/compare/v0.6.0...v0.7.0) - 2026-02-11
 
 ### Added
