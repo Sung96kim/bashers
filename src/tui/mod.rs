@@ -1,5 +1,5 @@
 use anyhow::Result;
-use crossterm::event::{self as crossterm_event, EnableMouseCapture, Event};
+use crossterm::event::{self as crossterm_event, DisableMouseCapture, EnableMouseCapture, Event};
 use crossterm::ExecutableCommand;
 use ratatui::layout::Rect;
 use ratatui::{DefaultTerminal, Frame};
@@ -17,8 +17,13 @@ pub fn run<T: TuiApp>(mut app: T) -> Result<()> {
     let mut terminal = ratatui::init();
     std::io::stdout().execute(EnableMouseCapture)?;
     let result = run_loop(&mut terminal, &mut app);
-    ratatui::restore();
+    teardown();
     result
+}
+
+pub(crate) fn teardown() {
+    let _ = std::io::stdout().execute(DisableMouseCapture);
+    ratatui::restore();
 }
 
 fn run_loop<T: TuiApp>(terminal: &mut DefaultTerminal, app: &mut T) -> Result<()> {
@@ -35,4 +40,14 @@ fn run_loop<T: TuiApp>(terminal: &mut DefaultTerminal, app: &mut T) -> Result<()
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_teardown_disables_mouse_capture() {
+        teardown();
+    }
 }
