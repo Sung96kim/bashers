@@ -13,6 +13,8 @@ bashers show                # list packages
 bashers git sync            # checkout default, pull, fetch (--current = current branch only); bs sync works
 bashers kube kmg <pattern>  # pod describe + Image lines
 bashers kube track <pattern> # follow logs (--err-only, --simple)
+bashers docker build -f <path>  # build image from Dockerfile (-t tag, --no-cache, -c context); bs build works
+bashers watch -n 2 -- <cmd> # run command repeatedly, highlight changes (-n interval, --no-diff)
 bashers self update         # upgrade bashers
 bashers version
 ```
@@ -24,6 +26,8 @@ bashers version
 | **show** | List installed packages |
 | **git** | `sync` (default branch or --current) |
 | **kube** | `kmg`, `track` |
+| **docker** | `build` (Dockerfile path, tag, no-cache, context) |
+| **watch** | Run command on an interval, diff highlight (green = changed) |
 | **self** | `update` |
 | **version** | Print version |
 
