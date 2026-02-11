@@ -7,7 +7,7 @@ on:
 
 jobs:
   release:
-    name: Release-plz release
+    name: Release
     runs-on: ubuntu-latest
     if: "contains(github.event.head_commit.message, 'chore: release')"
     environment: Rust Push
@@ -18,13 +18,29 @@ jobs:
         uses: actions/checkout@v6
         with:
           fetch-depth: 0
-          persist-credentials: false
+          token: ${{ secrets.GIT_TOKEN || secrets.GITHUB_TOKEN }}
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
-      - name: Run release-plz
-        uses: release-plz/action@v0.5
-        with:
-          command: release
+      - name: Get version from Cargo.toml
+        id: version
+        run: |
+          VERSION=$(grep -oE '^version\s*=\s*"[0-9]+\.[0-9]+\.[0-9]+"' Cargo.toml | head -1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
+          if [ -z "$VERSION" ]; then
+            echo "::error::No version found in Cargo.toml"
+            exit 1
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+      - name: Create and push tag
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag "v${{ steps.version.outputs.version }}"
+          git push origin "v${{ steps.version.outputs.version }}"
+      - name: Create GitHub release
+        run: gh release create "v${{ steps.version.outputs.version }}" --generate-notes
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GIT_TOKEN || secrets.GITHUB_TOKEN }}
+      - name: Publish to crates.io
+        run: cargo publish
+        env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
