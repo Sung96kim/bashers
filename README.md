@@ -13,7 +13,7 @@ bashers show                # list packages
 bashers git sync            # checkout default, pull, fetch (--current = current branch only); bs sync works
 bashers kube kmg <pattern>  # pod describe + Image lines
 bashers kube track <pattern> # follow logs (--err-only, --simple)
-bashers docker build -f <path>  # build image from Dockerfile (-t tag, --no-cache, -c context); bs build works
+bashers docker build [ -f <path> ]  # build from Dockerfile (default: ./Dockerfile; -t tag, --no-cache, -c context); bs build works
 bashers watch -n 2 -- <cmd> # run command repeatedly, highlight changes (-n interval, --no-diff)
 bashers self update         # upgrade bashers
 bashers version
@@ -26,7 +26,7 @@ bashers version
 | **show** | List installed packages |
 | **git** | `sync` (default branch or --current) |
 | **kube** | `kmg`, `track` |
-| **docker** | `build` (Dockerfile path, tag, no-cache, context) |
+| **docker** | `build` (optional Dockerfile path [default: ./Dockerfile], tag, no-cache, context) |
 | **watch** | Run command on an interval, diff highlight (green = changed) |
 | **self** | `update` |
 | **version** | Print version |
@@ -49,7 +49,7 @@ Fuzzy package matching, fzf when multiple matches, uv & poetry, color output, dr
 
 **Coverage:** `cargo install cargo-tarpaulin --locked` then `cargo tarpaulin --out Xml --output-dir coverage --timeout 120`
 
-**New command:** Add module under `src/commands/` (or `src/commands/<group>/`), add variant in `src/cli.rs`, wire in `src/main.rs`, then `cargo build`.
+**New command:** Add module under `src/commands/` (or `src/commands/<group>/`), add variant in `src/cli.rs`, wire in `src/main.rs`, then `cargo build`. When adding or changing any CLI command, update the Usage section and the Command table above.
 
 ## Releasing
 

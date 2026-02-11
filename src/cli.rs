@@ -94,9 +94,9 @@ pub enum GitCommands {
 pub enum DockerCommands {
     /// Build an image from a Dockerfile
     Build {
-        /// Path to the Dockerfile
+        /// Path to the Dockerfile (default: Dockerfile in current directory)
         #[arg(short = 'f', long, value_name = "PATH")]
-        dockerfile: std::path::PathBuf,
+        dockerfile: Option<std::path::PathBuf>,
         /// Image name and optional tag (e.g. myapp:latest)
         #[arg(short = 't', long)]
         tag: Option<String>,

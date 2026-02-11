@@ -2,14 +2,20 @@ use anyhow::{Context, Result};
 use std::path::{Path, PathBuf};
 
 pub fn run(
-    dockerfile: &Path,
+    dockerfile: Option<&Path>,
     tag: Option<&str>,
     no_cache: bool,
     context: Option<&Path>,
 ) -> Result<()> {
-    let dockerfile_abs = dockerfile
+    let path = dockerfile.map(PathBuf::from).unwrap_or_else(|| {
+        std::env::current_dir()
+            .map(|cwd| cwd.join("Dockerfile"))
+            .unwrap_or_else(|_| PathBuf::from("Dockerfile"))
+    });
+    let dockerfile_abs = path
         .canonicalize()
-        .with_context(|| format!("Dockerfile path not found: {}", dockerfile.display()))?;
+        .with_context(|| format!("Dockerfile path not found: {}", path.display()))?;
+    eprintln!("Building: {}", dockerfile_abs.display());
     let context_path: PathBuf = context.map(|p| p.to_path_buf()).unwrap_or_else(|| {
         dockerfile_abs
             .parent()

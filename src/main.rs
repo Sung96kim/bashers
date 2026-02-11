@@ -61,7 +61,7 @@ fn main() -> Result<()> {
                 context,
             } => {
                 bashers::commands::docker::build::run(
-                    &dockerfile,
+                    dockerfile.as_deref(),
                     tag.as_deref(),
                     no_cache,
                     context.as_deref(),
