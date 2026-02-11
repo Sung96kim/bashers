@@ -3,10 +3,15 @@ mod tui;
 
 use anyhow::{Context, Result};
 use regex::Regex;
-use std::process::Command;
+use std::io::Read;
+use std::process::{Command, Stdio};
+use std::sync::mpsc;
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
+use crate::utils::spinner;
+
+#[derive(Clone)]
 pub struct PodInfo {
     pub namespace: String,
     pub name: String,
@@ -21,7 +26,30 @@ impl PodInfo {
 
 pub fn run(patterns: &[String], err_only: bool, simple: bool) -> Result<()> {
     let regexes: Vec<Regex> = patterns.iter().map(|p| pod_pattern_regex(p)).collect();
-    let pods = find_matching_pods(&regexes)?;
+
+    let pb = if spinner::should_show_spinner() {
+        let pb = spinner::create_spinner();
+        pb.set_message("Finding pods...".to_string());
+        pb.enable_steady_tick(std::time::Duration::from_millis(100));
+        Some(pb)
+    } else {
+        None
+    };
+
+    let pods = match find_matching_pods(&regexes) {
+        Ok(p) => p,
+        Err(e) => {
+            if let Some(ref pb) = pb {
+                pb.finish_and_clear();
+            }
+            return Err(e);
+        }
+    };
+
+    if let Some(ref pb) = pb {
+        spinner::finish_with_message(pb, "Found pods");
+    }
+
     let use_color = atty::is(atty::Stream::Stdout);
 
     let mut any_match = false;
@@ -51,8 +79,10 @@ pub fn run(patterns: &[String], err_only: bool, simple: bool) -> Result<()> {
     }
 }
 
+const KUBECTL_AUTH_TIMEOUT: Duration = Duration::from_secs(15);
+
 pub fn find_matching_pods(regexes: &[Regex]) -> Result<Vec<PodInfo>> {
-    let output = Command::new("kubectl")
+    let mut child = Command::new("kubectl")
         .args([
             "get",
             "pods",
@@ -60,15 +90,79 @@ pub fn find_matching_pods(regexes: &[Regex]) -> Result<Vec<PodInfo>> {
             "-o",
             "custom-columns=NAMESPACE:.metadata.namespace,NAME:.metadata.name",
             "--no-headers",
+            "--request-timeout=10s",
         ])
-        .output()
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
         .context("Failed to run kubectl get pods")?;
 
-    if !output.status.success() {
-        anyhow::bail!("kubectl get pods failed");
+    let mut stdout = child.stdout.take().unwrap();
+    let mut stderr = child.stderr.take().unwrap();
+    let (tx, rx) = mpsc::channel();
+    thread::spawn(move || {
+        let mut out = Vec::new();
+        let _ = stdout.read_to_end(&mut out);
+        let mut err = Vec::new();
+        let _ = stderr.read_to_end(&mut err);
+        let _ = tx.send((out, err));
+    });
+
+    let deadline = Instant::now() + KUBECTL_AUTH_TIMEOUT;
+    let status = loop {
+        match child.try_wait()? {
+            Some(s) => break s,
+            None => {
+                if Instant::now() >= deadline {
+                    let _ = child.kill();
+                    let _ = child.wait();
+                    let stderr_msg = rx
+                        .recv_timeout(Duration::from_secs(1))
+                        .ok()
+                        .and_then(|(_, e)| String::from_utf8(e).ok())
+                        .filter(|s| !s.trim().is_empty())
+                        .map(|s| format!("\n\nkubectl stderr:\n{s}"))
+                        .unwrap_or_default();
+                    anyhow::bail!(
+                        "kubectl get pods timed out ({}s). \
+                         If your cluster requires authentication, run your auth command first \
+                         (e.g. open the login URL in a browser or run the token command), then run track again.{}",
+                        KUBECTL_AUTH_TIMEOUT.as_secs(),
+                        stderr_msg
+                    );
+                }
+                thread::sleep(Duration::from_millis(100));
+            }
+        }
+    };
+
+    let (stdout_bytes, stderr_bytes) = rx
+        .recv_timeout(Duration::from_secs(5))
+        .unwrap_or_else(|_| (Vec::new(), Vec::new()));
+
+    if !status.success() {
+        let stderr_str = String::from_utf8_lossy(&stderr_bytes);
+        let hint = if stderr_str.contains("could not open the browser")
+            || stderr_str.contains("Please visit the following URL")
+            || stderr_str.contains("authenticate")
+        {
+            " Authenticate to your cluster first (e.g. open the login URL in a browser or run your auth command), then run track again."
+        } else {
+            ""
+        };
+        anyhow::bail!(
+            "kubectl get pods failed{}.{}",
+            hint,
+            if stderr_str.trim().is_empty() {
+                String::new()
+            } else {
+                format!("\n\nkubectl stderr:\n{stderr_str}")
+            }
+        );
     }
 
-    let stdout = String::from_utf8(output.stdout)?;
+    let stdout = String::from_utf8(stdout_bytes)?;
     let mut pods = Vec::new();
 
     for line in stdout.lines() {
