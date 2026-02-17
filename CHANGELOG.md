@@ -1,5 +1,11 @@
 # CHANGELOG
 
+## [0.8.2](https://github.com/Sung96kim/bashers/compare/v0.8.1...v0.8.2) - 2026-02-17
+
+### Added
+
+- Python wheel builds ([#20](https://github.com/Sung96kim/bashers/pull/20))
+
 ## [0.8.1](https://github.com/Sung96kim/bashers/compare/v0.8.0...v0.8.1) - 2026-02-11
 
 ### Fixed
