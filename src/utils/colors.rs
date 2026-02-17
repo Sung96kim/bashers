@@ -46,6 +46,11 @@ impl Colors {
             .set_color(ColorSpec::new().set_fg(Some(Color::Red)))
     }
 
+    pub fn yellow(&mut self) -> io::Result<()> {
+        self.stdout
+            .set_color(ColorSpec::new().set_fg(Some(Color::Yellow)))
+    }
+
     pub fn print(&mut self, text: &str) -> io::Result<()> {
         write!(&mut self.stdout, "{}", text)
     }
@@ -89,6 +94,7 @@ mod tests {
         assert!(colors.cyan().is_ok());
         assert!(colors.bold().is_ok());
         assert!(colors.red().is_ok());
+        assert!(colors.yellow().is_ok());
         assert!(colors.reset().is_ok());
     }
 
