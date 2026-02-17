@@ -1,6 +1,15 @@
 use crate::utils::colors::Colors;
 use anyhow::{Context, Result};
+use std::io;
 use std::process::Command;
+
+const SEPARATOR: &str = "────────────────────────────────────────";
+
+fn print_separator(colors: &mut Colors) -> io::Result<()> {
+    colors.reset()?;
+    colors.print(&format!("\n{}\n\n", SEPARATOR))?;
+    colors.flush()
+}
 
 pub fn run(current: bool, dry_run: bool) -> Result<()> {
     let branch = if current {
@@ -15,6 +24,7 @@ pub fn run(current: bool, dry_run: bool) -> Result<()> {
         colors.red()?;
         colors.print(&format!("\nChecking out '{}'\n\n", branch))?;
         colors.reset()?;
+        colors.flush()?;
 
         if dry_run {
             println!("git checkout \"{}\"", branch);
@@ -26,22 +36,30 @@ pub fn run(current: bool, dry_run: bool) -> Result<()> {
         }
     }
 
+    print_separator(&mut colors)?;
     colors.green()?;
-    colors.print(&format!("\nPulling origin '{}'\n\n", branch))?;
+    colors.print(&format!("Pulling origin '{}'\n\n", branch))?;
     colors.reset()?;
+    colors.flush()?;
 
     if dry_run {
         println!("git pull origin \"{}\"", branch);
     } else {
-        Command::new("git")
+        let result = Command::new("git")
             .args(["pull", "origin", &branch])
-            .status()
+            .output()
             .context("Failed to run git pull")?;
+        print_pull_output(&mut colors, &result.stdout, &result.stderr)?;
+        if !result.status.success() {
+            anyhow::bail!("git pull failed");
+        }
     }
 
+    print_separator(&mut colors)?;
     colors.green()?;
-    colors.print("\nFetching all\n\n")?;
+    colors.print("Fetching all\n\n")?;
     colors.reset()?;
+    colors.flush()?;
 
     if dry_run {
         println!("git fetch --all");
@@ -53,6 +71,42 @@ pub fn run(current: bool, dry_run: bool) -> Result<()> {
     }
 
     Ok(())
+}
+
+fn is_fast_forward_summary_line(line: &str) -> bool {
+    let line = line.trim();
+    if line.is_empty() {
+        return false;
+    }
+    if line.contains(" | ") && (line.contains('+') || line.contains('-')) && line.chars().any(|c| c.is_ascii_digit()) {
+        return true;
+    }
+    if line.starts_with(|c: char| c.is_ascii_digit()) && line.contains("files changed") {
+        return true;
+    }
+    if line == "Fast-forward" {
+        return true;
+    }
+    false
+}
+
+fn print_pull_output(colors: &mut Colors, stdout: &[u8], stderr: &[u8]) -> io::Result<()> {
+    let print_lines = |colors: &mut Colors, data: &[u8]| -> io::Result<()> {
+        let text = String::from_utf8_lossy(data);
+        for line in text.lines() {
+            if is_fast_forward_summary_line(line) {
+                colors.yellow()?;
+                colors.println(line)?;
+                colors.reset()?;
+            } else {
+                colors.println(line)?;
+            }
+        }
+        Ok(())
+    };
+    print_lines(colors, stdout)?;
+    print_lines(colors, stderr)?;
+    colors.flush()
 }
 
 fn get_current_branch() -> Result<String> {
@@ -281,6 +335,16 @@ mod tests {
             }
         }
         panic!("Failed to parse remote show output");
+    }
+
+    #[test]
+    fn test_is_fast_forward_summary_line() {
+        assert!(is_fast_forward_summary_line(" CHANGELOG.md | 6 ++++++"));
+        assert!(is_fast_forward_summary_line(" Cargo.toml   | 2 +-"));
+        assert!(is_fast_forward_summary_line("2 files changed, 7 insertions(+), 1 deletion(-)"));
+        assert!(is_fast_forward_summary_line("Fast-forward"));
+        assert!(!is_fast_forward_summary_line("Your branch is behind 'origin/main' by 1 commit."));
+        assert!(!is_fast_forward_summary_line(""));
     }
 
     #[test]
