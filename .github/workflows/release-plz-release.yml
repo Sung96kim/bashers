@@ -44,3 +44,41 @@ jobs:
         run: cargo publish
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+
+  publish-pypi:
+    name: Publish to PyPI
+    runs-on: ubuntu-latest
+    needs: release
+    if: "contains(github.event.head_commit.message, 'chore: release')"
+    environment: Pypi push
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install maturin
+        run: pip install maturin
+      - name: Sync version to pyproject.toml
+        run: |
+          VERSION=$(awk '/^\[package\]/{p=1;next} /^\[/{p=0} p && /^version\s*=\s*"/{gsub(/^version\s*=\s*"|"\s*$/,""); print; exit}' Cargo.toml)
+          if [ -z "$VERSION" ] || ! echo "$VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::Invalid or missing version in Cargo.toml [package] section (got: '${VERSION}')"
+            exit 1
+          fi
+          sed -i "s/^version = \".*\"/version = \"$VERSION\"/" pyproject.toml
+          if ! grep -q "^version = \"$VERSION\"" pyproject.toml; then
+            echo "::error::Failed to sync version to pyproject.toml"
+            exit 1
+          fi
+      - name: Build wheel
+        run: maturin build --release --features pyo3
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          user: __token__
+          password: ${{ secrets.PYPI_TOKEN }}
+          packages-dir: target/wheels

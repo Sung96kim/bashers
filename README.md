@@ -49,7 +49,9 @@ Fuzzy package matching, fzf when multiple matches, uv & poetry, color output, dr
 
 **Coverage:** `cargo install cargo-tarpaulin --locked` then `cargo tarpaulin --out Xml --output-dir coverage --timeout 120`
 
-**New command:** Add module under `src/commands/` (or `src/commands/<group>/`), add variant in `src/cli.rs`, wire in `src/main.rs`, then `cargo build`. When adding or changing any CLI command, update the Usage section and the Command table above.
+**Python wheel (build and test locally):** Install [maturin](https://pypi.org/project/maturin/) (`pip install maturin`). From the repo root: `maturin build --release --features pyo3`. Wheels are written to `target/wheels/`. Install with a matching Python (e.g. 3.13): `python3 -m pip install --force-reinstall target/wheels/bashers-*-cp313-*.whl`. Run `bashers --help` or `bashers version` to confirm.
+
+**New command:** Add module under `src/commands/` (or `src/commands/<group>/`), add variant in `src/cli.rs`, wire in `src/lib.rs`, then `cargo build`. When adding or changing any CLI command, update the Usage section and the Command table above.
 
 ## Releasing
 
