@@ -1,5 +1,11 @@
 # CHANGELOG
 
+## [0.8.3](https://github.com/Sung96kim/bashers/compare/v0.8.2...v0.8.3) - 2026-02-17
+
+### Fixed
+
+- release python supported wheels ([#22](https://github.com/Sung96kim/bashers/pull/22))
+
 ## [0.8.2](https://github.com/Sung96kim/bashers/compare/v0.8.1...v0.8.2) - 2026-02-17
 
 ### Added
