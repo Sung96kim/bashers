@@ -1,53 +1,22 @@
 [build-system]
-requires = ["hatchling>=1.24.1", "hatch-build-scripts"]
-build-backend = "hatchling.build"
+requires = ["maturin>=1.0,<3.0"]
+build-backend = "maturin"
 
 [project]
 name = "bashers"
-version = "0.4.10"
-description = "Installable CLI helpers"
+version = "0.8.1"
+description = "Installable cli helpers"
 readme = "README.md"
-requires-python = ">=3.8"
 license = { text = "MIT" }
-authors = [{ name = "Sung Kim" }]
+requires-python = ">=3.8"
 classifiers = [
-    "Development Status :: 3 - Alpha",
-    "Intended Audience :: Developers",
-    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Rust",
+    "Programming Language :: Python :: Implementation :: CPython",
 ]
 
 [project.scripts]
-bashers = "bashers:main"
-bs = "bashers:main"
+bashers = "bashers:run_cli"
+bs = "bashers:run_cli"
 
-[project.optional-dependencies]
-test = ["pytest"]
-
-[[tool.hatch.build.hooks.build-scripts.scripts]]
-work_dir = "."
-out_dir = "bashers/bin"
-commands = ["cargo build --release"]
-artifacts = ["target/release/bashers", "target/release/bs"]
-
-[tool.hatch.build.targets.wheel]
-packages = ["bashers"]
-include = ["bashers/**"]
-exclude = ["bashers/__pycache__/*"]
-
-[tool.hatch.build.targets.sdist]
-include = [
-    "bashers/**",
-    "README.md",
-    "pyproject.toml",
-    "Cargo.toml",
-    "Cargo.lock",
-    "src/**",
-]
-exclude = ["bashers/__pycache__/*", "bashers/bin/*"]
-
-[tool.semantic_release]
-branch = "main"
-version_toml = ["pyproject.toml:project.version"]
-
-[tool.pytest.ini_options]
-testpaths = ["tests"]
+[tool.maturin]
+features = ["pyo3"]
