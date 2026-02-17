@@ -1,5 +1,11 @@
 # CHANGELOG
 
+## [0.8.5](https://github.com/Sung96kim/bashers/compare/v0.8.4...v0.8.5) - 2026-02-17
+
+### Added
+
+- Sync output formatting  ([#25](https://github.com/Sung96kim/bashers/pull/25))
+
 ## [0.8.4](https://github.com/Sung96kim/bashers/compare/v0.8.3...v0.8.4) - 2026-02-17
 
 ### Fixed
