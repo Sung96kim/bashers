@@ -2,6 +2,8 @@
 
 CLI command helpers (Rust). Install: `cargo install bashers`. Both `bashers` and `bs` go to `~/.cargo/bin`; ensure it’s in PATH before pyenv/shims.
 
+**Install from PyPI:** `pip install bashers` (or `pip install --upgrade bashers` to get the latest). PyPI wheels are built for Python 3.11, 3.12, and 3.13; if you’re on 3.13 and see an old version, a 3.13 wheel may not have been published yet for that release—use the next release or `cargo install bashers` / install from repo.
+
 **Install from repo:** `./scripts/install.sh` (or `curl -sSf https://raw.githubusercontent.com/Sung96kim/bashers/main/scripts/install.sh | sh`). Use `--no-path` to skip profile changes.
 
 ## Usage
