@@ -22,7 +22,7 @@ pub fn run(current: bool, dry_run: bool) -> Result<()> {
 
     if !current {
         colors.red()?;
-        colors.print(&format!("\nChecking out '{}'\n\n", branch))?;
+        colors.print(&format!("\nChecking out [{}]\n\n", branch))?;
         colors.reset()?;
         colors.flush()?;
 
@@ -38,7 +38,7 @@ pub fn run(current: bool, dry_run: bool) -> Result<()> {
 
     print_separator(&mut colors)?;
     colors.green()?;
-    colors.print(&format!("Pulling origin '{}'\n\n", branch))?;
+    colors.print(&format!("Pulling origin [{}]\n\n", branch))?;
     colors.reset()?;
     colors.flush()?;
 
