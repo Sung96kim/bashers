@@ -37,7 +37,7 @@ pub fn print_success_message(message: &str) {
         ColorChoice::Never
     });
     let _ = stderr.set_color(ColorSpec::new().set_fg(Some(termcolor::Color::Green)));
-    let _ = write!(stderr, "✓ {}\n", message);
+    let _ = writeln!(stderr, "✓ {}", message);
     let _ = stderr.reset();
     let _ = stderr.flush();
 }
@@ -50,7 +50,7 @@ pub fn print_success_message_replace_line(message: &str) {
     });
     let _ = write!(stderr, "\r\x1b[K");
     let _ = stderr.set_color(ColorSpec::new().set_fg(Some(termcolor::Color::Green)));
-    let _ = write!(stderr, "✓ {}\n", message);
+    let _ = writeln!(stderr, "✓ {}", message);
     let _ = stderr.reset();
     let _ = stderr.flush();
 }
@@ -62,7 +62,7 @@ pub fn print_failure_message(message: &str) {
         ColorChoice::Never
     });
     let _ = stderr.set_color(ColorSpec::new().set_fg(Some(termcolor::Color::Red)));
-    let _ = write!(stderr, "✗ {}\n", message);
+    let _ = writeln!(stderr, "✗ {}", message);
     let _ = stderr.reset();
     let _ = stderr.flush();
 }
@@ -216,14 +216,8 @@ mod tests {
 
     #[test]
     fn test_run_with_completion_dry_run_err() {
-        let out: Result<i32, &str> = run_with_completion(
-            true,
-            "msg",
-            "done",
-            None,
-            || Err("error"),
-            |&x: &i32| x > 0,
-        );
+        let out: Result<i32, &str> =
+            run_with_completion(true, "msg", "done", None, || Err("error"), |&x: &i32| x > 0);
         assert!(out.is_err());
         assert_eq!(out.unwrap_err(), "error");
     }
@@ -241,14 +235,8 @@ mod tests {
     #[test]
     fn test_run_with_completion_no_spinner_err() {
         std::env::set_var("NO_SPINNER", "1");
-        let out: Result<i32, &str> = run_with_completion(
-            false,
-            "msg",
-            "done",
-            None,
-            || Err("fail"),
-            |&x: &i32| x > 0,
-        );
+        let out: Result<i32, &str> =
+            run_with_completion(false, "msg", "done", None, || Err("fail"), |&x: &i32| x > 0);
         std::env::remove_var("NO_SPINNER");
         assert!(out.is_err());
     }

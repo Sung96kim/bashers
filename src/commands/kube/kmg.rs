@@ -1,16 +1,43 @@
 use anyhow::{Context, Result};
+use indicatif::{MultiProgress, ProgressBar, ProgressDrawTarget, ProgressStyle};
 use regex::Regex;
 use std::process::{Command, Stdio};
+use std::thread;
+use std::time::Duration;
 
-use crate::utils::spinner;
-
+const CYAN_BOLD: &str = "\x1b[36m\x1b[1m";
+const GREEN: &str = "\x1b[32m";
+const RED: &str = "\x1b[31m";
 const RESET: &str = "\x1b[0m";
-const BOLD: &str = "\x1b[1m";
-const CYAN: &str = "\x1b[36m";
+
+fn format_pod_prefix(pod_name: &str, use_color: bool) -> String {
+    if use_color {
+        format!("{CYAN_BOLD}[{pod_name}]{RESET}: ")
+    } else {
+        format!("[{pod_name}]: ")
+    }
+}
 
 pub fn run(pattern: &str) -> Result<()> {
-    let use_color = atty::is(atty::Stream::Stdout);
-    let mut sp = spinner::create_spinner("Getting pod images...");
+    let use_color = atty::is(atty::Stream::Stderr);
+
+    let draw_target = if atty::is(atty::Stream::Stderr) {
+        ProgressDrawTarget::stderr()
+    } else {
+        ProgressDrawTarget::hidden()
+    };
+    let multi = MultiProgress::with_draw_target(draw_target);
+
+    let header_style = ProgressStyle::default_spinner()
+        .template("{spinner:.dim}{msg}")
+        .unwrap()
+        .tick_strings(&["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏", ""]);
+    let header_pb = multi.add(
+        ProgressBar::new_spinner()
+            .with_style(header_style)
+            .with_message(" Fetching pods..."),
+    );
+    header_pb.enable_steady_tick(Duration::from_millis(80));
 
     let pods_output = Command::new("kubectl")
         .args([
@@ -25,55 +52,99 @@ pub fn run(pattern: &str) -> Result<()> {
         .context("Failed to run kubectl get pods")?;
 
     if !pods_output.status.success() {
-        spinner::stop_spinner(sp.as_mut());
+        let msg = if use_color {
+            format!("{RED}✗ kubectl get pods failed{RESET}")
+        } else {
+            "✗ kubectl get pods failed".to_string()
+        };
+        header_pb.finish_with_message(msg);
         anyhow::bail!("kubectl get pods failed");
     }
 
+    let fetched_msg = if use_color {
+        format!("{GREEN}✓ Fetched pods{RESET}")
+    } else {
+        "✓ Fetched pods".to_string()
+    };
+    header_pb.finish_with_message(fetched_msg);
+
     let stdout = String::from_utf8(pods_output.stdout)?;
     let re = pod_pattern_regex(pattern);
-    let mut results: Vec<(String, String)> = Vec::new();
-
-    for line in stdout.lines() {
-        let line = line.trim();
-        if line.is_empty() {
-            continue;
-        }
-        let parts: Vec<&str> = line.split_whitespace().collect();
-        if parts.len() < 2 {
-            continue;
-        }
-        let namespace = parts[0];
-        let pod_name = parts[1];
-        if !re.is_match(pod_name) {
-            continue;
-        }
-
-        let describe_output = Command::new("kubectl")
-            .args(["describe", "pod", pod_name, "-n", namespace])
-            .stdout(Stdio::piped())
-            .output()
-            .context("Failed to run kubectl describe pod")?;
-
-        if !describe_output.status.success() {
-            continue;
-        }
-
-        let describe_stdout = String::from_utf8(describe_output.stdout)?;
-        for describe_line in describe_stdout.lines() {
-            if let Some(image) = describe_line.trim().strip_prefix("Image:") {
-                results.push((pod_name.to_string(), image.trim().to_string()));
+    let pods: Vec<(String, String)> = stdout
+        .lines()
+        .filter_map(|line| {
+            let line = line.trim();
+            if line.is_empty() {
+                return None;
             }
-        }
+            let parts: Vec<&str> = line.split_whitespace().collect();
+            if parts.len() < 2 {
+                return None;
+            }
+            let namespace = parts[0];
+            let pod_name = parts[1];
+            if !re.is_match(pod_name) {
+                return None;
+            }
+            Some((namespace.to_string(), pod_name.to_string()))
+        })
+        .collect();
+
+    let pod_style = ProgressStyle::default_spinner()
+        .template("{prefix}{spinner:.dim}{msg}")
+        .unwrap()
+        .tick_strings(&["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏", ""]);
+
+    let total = pods.len();
+    let mut handles = Vec::with_capacity(total);
+
+    for (idx, (namespace, pod_name)) in pods.into_iter().enumerate() {
+        let step = format!("[{}/{}] ", idx + 1, total);
+        let prefix = format!("{}{}", step, format_pod_prefix(&pod_name, use_color));
+        let pb = ProgressBar::new_spinner()
+            .with_style(pod_style.clone())
+            .with_prefix(prefix)
+            .with_message("");
+        let pb = multi.add(pb);
+        pb.enable_steady_tick(Duration::from_millis(80));
+
+        let idx = idx + 1;
+        let handle = thread::spawn(move || {
+            let describe_output = Command::new("kubectl")
+                .args(["describe", "pod", &pod_name, "-n", &namespace])
+                .stdout(Stdio::piped())
+                .output();
+
+            let image = match describe_output {
+                Ok(ref out) if out.status.success() => String::from_utf8_lossy(&out.stdout)
+                    .lines()
+                    .find_map(|line| {
+                        line.trim()
+                            .strip_prefix("Image:")
+                            .map(|s| s.trim().to_string())
+                    })
+                    .unwrap_or_default(),
+                _ => String::new(),
+            };
+
+            let msg = if image.is_empty() {
+                "(no image)".to_string()
+            } else {
+                image
+            };
+            let step = format!("[{}/{}] ", idx, total);
+            pb.set_prefix(format!(
+                "{}{}",
+                step,
+                format_pod_prefix(&pod_name, use_color)
+            ));
+            pb.finish_with_message(msg);
+        });
+        handles.push(handle);
     }
 
-    spinner::finish_with_message(sp.as_mut(), &format!("Retrieved images for {pattern}"));
-
-    for (pod_name, image) in results {
-        if use_color {
-            println!("{CYAN}{BOLD}[{pod_name}]{RESET}: {image}");
-        } else {
-            println!("[{pod_name}]: {image}");
-        }
+    for h in handles {
+        let _ = h.join();
     }
 
     Ok(())

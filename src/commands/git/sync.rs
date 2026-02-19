@@ -21,7 +21,7 @@ fn fail_cmd(cmd: &str) -> ! {
         ColorChoice::Never
     });
     let _ = stderr.set_color(ColorSpec::new().set_fg(Some(Color::Red)));
-    let _ = write!(&mut stderr, "✗ Command: `{}` failed.\n", cmd);
+    let _ = writeln!(&mut stderr, "✗ Command: `{}` failed.", cmd);
     let _ = stderr.reset();
     let _ = stderr.flush();
     process::exit(1);
