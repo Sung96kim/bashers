@@ -10,14 +10,7 @@ const CYAN: &str = "\x1b[36m";
 
 pub fn run(pattern: &str) -> Result<()> {
     let use_color = atty::is(atty::Stream::Stdout);
-    let pb = if spinner::should_show_spinner() {
-        let pb = spinner::create_spinner();
-        pb.set_message("Getting pod images...".to_string());
-        pb.enable_steady_tick(std::time::Duration::from_millis(100));
-        Some(pb)
-    } else {
-        None
-    };
+    let mut sp = spinner::create_spinner("Getting pod images...");
 
     let pods_output = Command::new("kubectl")
         .args([
@@ -32,9 +25,7 @@ pub fn run(pattern: &str) -> Result<()> {
         .context("Failed to run kubectl get pods")?;
 
     if !pods_output.status.success() {
-        if let Some(ref pb) = pb {
-            pb.finish_and_clear();
-        }
+        spinner::stop_spinner(sp.as_mut());
         anyhow::bail!("kubectl get pods failed");
     }
 
@@ -75,9 +66,7 @@ pub fn run(pattern: &str) -> Result<()> {
         }
     }
 
-    if let Some(pb) = &pb {
-        spinner::finish_with_message(pb, &format!("Retrieved images for {pattern}"));
-    }
+    spinner::finish_with_message(sp.as_mut(), &format!("Retrieved images for {pattern}"));
 
     for (pod_name, image) in results {
         if use_color {
@@ -95,4 +84,29 @@ fn pod_pattern_regex(pattern: &str) -> Regex {
         let escaped = regex::escape(pattern);
         Regex::new(&format!("(?i){}", escaped)).expect("escaped pattern must be valid")
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_pod_pattern_regex_valid() {
+        let re = pod_pattern_regex("my-pod");
+        assert!(re.is_match("my-pod"));
+        assert!(!re.is_match("other"));
+    }
+
+    #[test]
+    fn test_pod_pattern_regex_invalid_falls_back_case_insensitive() {
+        let re = pod_pattern_regex("[invalid");
+        assert!(re.is_match("[invalid"));
+        assert!(re.is_match("[INVALID"));
+    }
+
+    #[test]
+    fn test_pod_pattern_regex_literal_bracket_escaped_on_fallback() {
+        let re = pod_pattern_regex("[");
+        assert!(re.is_match("["));
+    }
 }

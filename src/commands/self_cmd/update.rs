@@ -10,11 +10,9 @@ pub fn run() -> Result<()> {
     let mut colors = Colors::new();
 
     let latest_version = if spinner::should_show_spinner() {
-        let pb = spinner::create_spinner();
-        pb.set_message("Checking for updates...".to_string());
-        pb.enable_steady_tick(std::time::Duration::from_millis(100));
+        let mut sp = spinner::create_spinner("Checking for updates...");
         let result = get_latest_version();
-        pb.finish_and_clear();
+        spinner::stop_spinner(sp.as_mut());
         result?
     } else {
         colors.green()?;

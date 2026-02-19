@@ -1,7 +1,10 @@
 use crate::utils::colors::Colors;
+use crate::utils::spinner;
 use anyhow::{Context, Result};
-use std::io;
-use std::process::Command;
+use spinoff::Color as SpinoffColor;
+use std::io::{self, Write};
+use std::process::{self, Command};
+use termcolor::{Color, ColorChoice, ColorSpec, StandardStream, WriteColor};
 
 const SEPARATOR: &str = "────────────────────────────────────────";
 
@@ -11,66 +14,135 @@ fn print_separator(colors: &mut Colors) -> io::Result<()> {
     colors.flush()
 }
 
+fn fail_cmd(cmd: &str) -> ! {
+    let mut stderr = StandardStream::stderr(if atty::is(atty::Stream::Stderr) {
+        ColorChoice::Auto
+    } else {
+        ColorChoice::Never
+    });
+    let _ = stderr.set_color(ColorSpec::new().set_fg(Some(Color::Red)));
+    let _ = write!(&mut stderr, "✗ Command: `{}` failed.\n", cmd);
+    let _ = stderr.reset();
+    let _ = stderr.flush();
+    process::exit(1);
+}
+
 pub fn run(current: bool, dry_run: bool) -> Result<()> {
     let branch = if current {
-        get_current_branch().context("Could not determine current branch. Are you in a git repository?")?
+        get_current_branch()
+            .context("Could not determine current branch. Are you in a git repository?")?
     } else {
-        get_default_branch().context("Could not determine default branch. Are you in a git repository?")?
+        get_default_branch()
+            .context("Could not determine default branch. Are you in a git repository?")?
     };
 
     let mut colors = Colors::new();
 
     if !current {
-        colors.red()?;
-        colors.print(&format!("\nChecking out [{}]\n\n", branch))?;
-        colors.reset()?;
-        colors.flush()?;
-
         if dry_run {
-            println!("git checkout \"{}\"", branch);
+            println!("git checkout {}", branch);
         } else {
-            Command::new("git")
-                .args(["checkout", &branch])
-                .status()
-                .context("Failed to run git checkout")?;
+            let branch_clone = branch.clone();
+            let spinner_msg = format!("Checking out [{}]", branch);
+            let success_msg = format!("Checked out [{}]", branch);
+            let output = spinner::run_with_completion(
+                dry_run,
+                &spinner_msg,
+                &success_msg,
+                Some(SpinoffColor::Red),
+                || {
+                    Command::new("git")
+                        .args(["checkout", &branch_clone])
+                        .output()
+                },
+                |o| o.status.success(),
+            );
+            match output {
+                Ok(ref out) => {
+                    if !out.status.success() {
+                        spinner::print_failure_message(&format!("Checking out [{}]", branch));
+                    }
+                    print_pull_output(&mut colors, &out.stdout, &out.stderr)?;
+                    if !out.status.success() {
+                        fail_cmd(&format!("git checkout {}", branch));
+                    }
+                }
+                Err(_) => fail_cmd(&format!("git checkout {}", branch)),
+            }
         }
     }
 
     print_separator(&mut colors)?;
-    colors.green()?;
-    colors.print(&format!("Pulling origin [{}]\n\n", branch))?;
-    colors.reset()?;
-    colors.flush()?;
 
-    if dry_run {
-        println!("git pull origin \"{}\"", branch);
+    let _did_stash = if dry_run {
+        println!("git pull origin {}", branch);
+        false
     } else {
-        let result = Command::new("git")
-            .args(["pull", "origin", &branch])
-            .output()
-            .context("Failed to run git pull")?;
-        print_pull_output(&mut colors, &result.stdout, &result.stderr)?;
-        if !result.status.success() {
-            anyhow::bail!("git pull failed");
-        }
-    }
+        run_pull_step(&mut colors, &branch, dry_run)?
+    };
 
     print_separator(&mut colors)?;
-    colors.green()?;
-    colors.print("Fetching all\n\n")?;
-    colors.reset()?;
-    colors.flush()?;
 
     if dry_run {
         println!("git fetch --all");
     } else {
-        Command::new("git")
-            .args(["fetch", "--all"])
-            .status()
-            .context("Failed to run git fetch")?;
+        let output: std::result::Result<process::Output, io::Error> = spinner::run_with_completion(
+            dry_run,
+            "Fetching all",
+            "Fetched all",
+            Some(SpinoffColor::Green),
+            || Command::new("git").args(["fetch", "--all"]).output(),
+            |o| o.status.success(),
+        );
+        match output {
+            Ok(ref out) => {
+                if !out.status.success() {
+                    spinner::print_failure_message("Fetching all");
+                }
+                print_pull_output(&mut colors, &out.stdout, &out.stderr)?;
+                if !out.status.success() {
+                    fail_cmd("git fetch --all");
+                }
+            }
+            Err(_) => fail_cmd("git fetch --all"),
+        }
     }
 
+    spinner::print_success_message("Done.");
+
     Ok(())
+}
+
+fn run_pull_step(colors: &mut Colors, branch: &str, dry_run: bool) -> Result<bool> {
+    let branch_clone = branch.to_string();
+    let pull_spinner_msg = format!("Pulling origin [{}]", branch);
+    let pull_success_msg = format!("Pulled origin [{}]", branch);
+    let pull_cmd = format!("git pull origin {}", branch);
+
+    let output = spinner::run_with_completion(
+        dry_run,
+        &pull_spinner_msg,
+        &pull_success_msg,
+        Some(SpinoffColor::Green),
+        || {
+            Command::new("git")
+                .args(["pull", "origin", &branch_clone])
+                .output()
+        },
+        |o| o.status.success(),
+    );
+    let output = match output {
+        Ok(o) => o,
+        Err(_) => fail_cmd(&pull_cmd),
+    };
+    if !output.status.success() {
+        spinner::print_failure_message(&pull_spinner_msg);
+    }
+    print_pull_output(colors, &output.stdout, &output.stderr)?;
+    if !output.status.success() {
+        fail_cmd(&pull_cmd);
+    }
+    Ok(false)
 }
 
 fn is_fast_forward_summary_line(line: &str) -> bool {
@@ -78,7 +150,10 @@ fn is_fast_forward_summary_line(line: &str) -> bool {
     if line.is_empty() {
         return false;
     }
-    if line.contains(" | ") && (line.contains('+') || line.contains('-')) && line.chars().any(|c| c.is_ascii_digit()) {
+    if line.contains(" | ")
+        && (line.contains('+') || line.contains('-'))
+        && line.chars().any(|c| c.is_ascii_digit())
+    {
         return true;
     }
     if line.starts_with(|c: char| c.is_ascii_digit()) && line.contains("files changed") {
@@ -91,9 +166,14 @@ fn is_fast_forward_summary_line(line: &str) -> bool {
 }
 
 fn print_pull_output(colors: &mut Colors, stdout: &[u8], stderr: &[u8]) -> io::Result<()> {
+    let has_output = !stdout.is_empty() || !stderr.is_empty();
+    if has_output {
+        colors.println("")?;
+    }
     let print_lines = |colors: &mut Colors, data: &[u8]| -> io::Result<()> {
         let text = String::from_utf8_lossy(data);
         for line in text.lines() {
+            let line = line.trim_end_matches('\r');
             if is_fast_forward_summary_line(line) {
                 colors.yellow()?;
                 colors.println(line)?;
@@ -341,9 +421,13 @@ mod tests {
     fn test_is_fast_forward_summary_line() {
         assert!(is_fast_forward_summary_line(" CHANGELOG.md | 6 ++++++"));
         assert!(is_fast_forward_summary_line(" Cargo.toml   | 2 +-"));
-        assert!(is_fast_forward_summary_line("2 files changed, 7 insertions(+), 1 deletion(-)"));
+        assert!(is_fast_forward_summary_line(
+            "2 files changed, 7 insertions(+), 1 deletion(-)"
+        ));
         assert!(is_fast_forward_summary_line("Fast-forward"));
-        assert!(!is_fast_forward_summary_line("Your branch is behind 'origin/main' by 1 commit."));
+        assert!(!is_fast_forward_summary_line(
+            "Your branch is behind 'origin/main' by 1 commit."
+        ));
         assert!(!is_fast_forward_summary_line(""));
     }
 
@@ -374,5 +458,54 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn test_print_pull_output_empty_no_panic() {
+        let mut colors = Colors::new();
+        print_pull_output(&mut colors, b"", b"").unwrap();
+    }
+
+    #[test]
+    fn test_print_pull_output_stdout_only_no_panic() {
+        let mut colors = Colors::new();
+        print_pull_output(&mut colors, b"Already on 'main'\n", b"").unwrap();
+    }
+
+    #[test]
+    fn test_print_pull_output_stderr_only_no_panic() {
+        let mut colors = Colors::new();
+        print_pull_output(&mut colors, b"", b"From origin\n").unwrap();
+    }
+
+    #[test]
+    fn test_print_pull_output_both_no_panic() {
+        let mut colors = Colors::new();
+        print_pull_output(
+            &mut colors,
+            b"Your branch is up to date.\n",
+            b"From github.com:repo\n",
+        )
+        .unwrap();
+    }
+
+    #[test]
+    fn test_print_pull_output_with_cr_no_panic() {
+        let mut colors = Colors::new();
+        print_pull_output(&mut colors, b"line with\r\n", b"").unwrap();
+    }
+
+    #[test]
+    fn test_is_fast_forward_summary_line_more_cases() {
+        assert!(is_fast_forward_summary_line(
+            "1 files changed, 1 insertion(+)"
+        ));
+        assert!(is_fast_forward_summary_line(
+            "10 files changed, 100 insertions(+), 50 deletions(-)"
+        ));
+        assert!(!is_fast_forward_summary_line("normal log line"));
+        assert!(!is_fast_forward_summary_line(
+            "Merge made by the 'recursive' strategy."
+        ));
     }
 }
