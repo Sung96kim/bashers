@@ -42,7 +42,7 @@ pub fn run(args: Vec<String>) -> Result<()> {
             }
         },
         Some(cli::Commands::Kube { command }) => match command {
-            cli::KubeCommands::Kmg { pattern } => commands::kube::kmg::run(&pattern)?,
+            cli::KubeCommands::Kmg { patterns } => commands::kube::kmg::run(&patterns)?,
             cli::KubeCommands::Track {
                 patterns,
                 err_only,
@@ -84,9 +84,7 @@ use pyo3::prelude::*;
 #[pyfunction]
 fn run_cli(py: Python<'_>) -> PyResult<()> {
     let sys = py.import("sys")?;
-    let argv: Vec<String> = sys
-        .getattr("argv")?
-        .extract::<Vec<String>>()?;
+    let argv: Vec<String> = sys.getattr("argv")?.extract::<Vec<String>>()?;
     let args = if argv.len() <= 1 {
         vec!["bashers".to_string()]
     } else {
