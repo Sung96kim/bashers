@@ -37,3 +37,20 @@ pub fn run(
     }
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::Path;
+
+    #[test]
+    fn test_run_nonexistent_dockerfile_errors() {
+        let result = run(
+            Some(Path::new("/nonexistent/dockerfile")),
+            None,
+            false,
+            None,
+        );
+        assert!(result.is_err());
+    }
+}

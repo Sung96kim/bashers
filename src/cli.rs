@@ -113,8 +113,8 @@ pub enum DockerCommands {
 pub enum KubeCommands {
     /// Describe pod(s) and show Image lines (pod name regex-matched)
     Kmg {
-        /// Pod name pattern (regex)
-        pattern: String,
+        /// Pod name patterns (regex); pod matches if any pattern matches
+        patterns: Vec<String>,
     },
     /// Follow logs from pods matching patterns (persists through restarts)
     Track {

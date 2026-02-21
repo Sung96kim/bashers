@@ -27,28 +27,17 @@ impl PodInfo {
 pub fn run(patterns: &[String], err_only: bool, simple: bool) -> Result<()> {
     let regexes: Vec<Regex> = patterns.iter().map(|p| pod_pattern_regex(p)).collect();
 
-    let pb = if spinner::should_show_spinner() {
-        let pb = spinner::create_spinner();
-        pb.set_message("Finding pods...".to_string());
-        pb.enable_steady_tick(std::time::Duration::from_millis(100));
-        Some(pb)
-    } else {
-        None
-    };
+    let mut sp = spinner::create_spinner("Finding pods...");
 
     let pods = match find_matching_pods(&regexes) {
         Ok(p) => p,
         Err(e) => {
-            if let Some(ref pb) = pb {
-                pb.finish_and_clear();
-            }
+            spinner::stop_spinner(sp.as_mut());
             return Err(e);
         }
     };
 
-    if let Some(ref pb) = pb {
-        spinner::finish_with_message(pb, "Found pods");
-    }
+    spinner::finish_with_message(sp.as_mut(), "Found pods");
 
     let use_color = atty::is(atty::Stream::Stdout);
 

@@ -1,6 +1,11 @@
 use std::io::{self, Write};
 use termcolor::{Color, ColorChoice, ColorSpec, StandardStream, WriteColor};
 
+pub const ANSI_CYAN_BOLD: &str = "\x1b[36m\x1b[1m";
+pub const ANSI_GREEN: &str = "\x1b[32m";
+pub const ANSI_RED: &str = "\x1b[31m";
+pub const ANSI_RESET: &str = "\x1b[0m";
+
 pub struct Colors {
     stdout: StandardStream,
 }

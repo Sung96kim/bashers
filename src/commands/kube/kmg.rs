@@ -1,91 +1,139 @@
+use crate::utils::colors;
+use crate::utils::multi_progress;
 use anyhow::{Context, Result};
 use regex::Regex;
+use std::collections::BTreeMap;
 use std::process::{Command, Stdio};
 
-use crate::utils::spinner;
-
-const RESET: &str = "\x1b[0m";
-const BOLD: &str = "\x1b[1m";
-const CYAN: &str = "\x1b[36m";
-
-pub fn run(pattern: &str) -> Result<()> {
-    let use_color = atty::is(atty::Stream::Stdout);
-    let pb = if spinner::should_show_spinner() {
-        let pb = spinner::create_spinner();
-        pb.set_message("Getting pod images...".to_string());
-        pb.enable_steady_tick(std::time::Duration::from_millis(100));
-        Some(pb)
+fn format_pod_prefix(pod_name: &str, use_color: bool) -> String {
+    if use_color {
+        format!(
+            "{}[{pod_name}]{}: ",
+            colors::ANSI_CYAN_BOLD,
+            colors::ANSI_RESET
+        )
     } else {
-        None
+        format!("[{pod_name}]: ")
+    }
+}
+
+pub fn run(patterns: &[String]) -> Result<()> {
+    let use_color = atty::is(atty::Stream::Stderr);
+    let multi = multi_progress::multi_progress_stderr();
+    let patterns_display = patterns.join(" ");
+
+    let success_msg = if use_color {
+        format!(
+            "{}✓ Fetched pods matching patterns: {patterns_display}{}",
+            colors::ANSI_GREEN,
+            colors::ANSI_RESET
+        )
+    } else {
+        format!("✓ Fetched pods matching patterns: {patterns_display}")
+    };
+    let failure_msg = if use_color {
+        format!(
+            "{}✗ kubectl get pods failed{}",
+            colors::ANSI_RED,
+            colors::ANSI_RESET
+        )
+    } else {
+        "✗ kubectl get pods failed".to_string()
     };
 
-    let pods_output = Command::new("kubectl")
-        .args([
-            "get",
-            "pods",
-            "-A",
-            "-o",
-            "custom-columns=NAMESPACE:.metadata.namespace,NAME:.metadata.name",
-            "--no-headers",
-        ])
-        .output()
-        .context("Failed to run kubectl get pods")?;
-
-    if !pods_output.status.success() {
-        if let Some(ref pb) = pb {
-            pb.finish_and_clear();
-        }
-        anyhow::bail!("kubectl get pods failed");
-    }
+    let loading_msg = format!(" Fetching pods matching patterns: {patterns_display}...");
+    let pods_output =
+        multi_progress::run_header_spinner(&multi, &loading_msg, success_msg, failure_msg, || {
+            let output = Command::new("kubectl")
+                .args([
+                    "get",
+                    "pods",
+                    "-A",
+                    "-o",
+                    "custom-columns=NAMESPACE:.metadata.namespace,NAME:.metadata.name",
+                    "--no-headers",
+                ])
+                .output()
+                .context("Failed to run kubectl get pods")?;
+            if !output.status.success() {
+                anyhow::bail!("kubectl get pods failed");
+            }
+            Ok(output)
+        })?;
 
     let stdout = String::from_utf8(pods_output.stdout)?;
-    let re = pod_pattern_regex(pattern);
-    let mut results: Vec<(String, String)> = Vec::new();
-
-    for line in stdout.lines() {
-        let line = line.trim();
-        if line.is_empty() {
-            continue;
-        }
-        let parts: Vec<&str> = line.split_whitespace().collect();
-        if parts.len() < 2 {
-            continue;
-        }
-        let namespace = parts[0];
-        let pod_name = parts[1];
-        if !re.is_match(pod_name) {
-            continue;
-        }
-
-        let describe_output = Command::new("kubectl")
-            .args(["describe", "pod", pod_name, "-n", namespace])
-            .stdout(Stdio::piped())
-            .output()
-            .context("Failed to run kubectl describe pod")?;
-
-        if !describe_output.status.success() {
-            continue;
-        }
-
-        let describe_stdout = String::from_utf8(describe_output.stdout)?;
-        for describe_line in describe_stdout.lines() {
-            if let Some(image) = describe_line.trim().strip_prefix("Image:") {
-                results.push((pod_name.to_string(), image.trim().to_string()));
+    let regexes: Vec<Regex> = patterns
+        .iter()
+        .map(|p| pod_pattern_regex(p.as_str()))
+        .collect();
+    let pods_with_pattern: Vec<(String, String, usize)> = stdout
+        .lines()
+        .filter_map(|line| {
+            let line = line.trim();
+            if line.is_empty() {
+                return None;
             }
-        }
-    }
+            let parts: Vec<&str> = line.split_whitespace().collect();
+            if parts.len() < 2 {
+                return None;
+            }
+            let namespace = parts[0];
+            let pod_name = parts[1];
+            let pattern_idx = regexes.iter().position(|re| re.is_match(pod_name))?;
+            Some((namespace.to_string(), pod_name.to_string(), pattern_idx))
+        })
+        .collect();
 
-    if let Some(pb) = &pb {
-        spinner::finish_with_message(pb, &format!("Retrieved images for {pattern}"));
-    }
+    let by_pattern: BTreeMap<usize, Vec<(String, String)>> =
+        pods_with_pattern
+            .into_iter()
+            .fold(BTreeMap::new(), |mut acc, (ns, name, idx)| {
+                acc.entry(idx).or_default().push((ns, name));
+                acc
+            });
 
-    for (pod_name, image) in results {
-        if use_color {
-            println!("{CYAN}{BOLD}[{pod_name}]{RESET}: {image}");
-        } else {
-            println!("[{pod_name}]: {image}");
-        }
-    }
+    let sections: Vec<(String, Vec<(String, String)>)> = by_pattern
+        .into_iter()
+        .map(|(pattern_idx, pods)| (patterns[pattern_idx].clone(), pods))
+        .collect();
+
+    let _ = multi_progress::run_parallel_spinners_sectioned(
+        &multi,
+        sections,
+        |_section_idx, one_indexed, total_in_section, (_, pod_name)| {
+            format!(
+                "[{}/{}] {}",
+                one_indexed,
+                total_in_section,
+                format_pod_prefix(pod_name, use_color)
+            )
+        },
+        |(namespace, pod_name): (String, String)| {
+            let describe_output = Command::new("kubectl")
+                .args(["describe", "pod", &pod_name, "-n", &namespace])
+                .stdout(Stdio::piped())
+                .output();
+
+            match describe_output {
+                Ok(ref out) if out.status.success() => String::from_utf8_lossy(&out.stdout)
+                    .lines()
+                    .find_map(|line| {
+                        line.trim()
+                            .strip_prefix("Image:")
+                            .map(|s| s.trim().to_string())
+                    })
+                    .unwrap_or_default(),
+                _ => String::new(),
+            }
+        },
+        |image: &String| {
+            if image.is_empty() {
+                "(no image)".to_string()
+            } else {
+                image.clone()
+            }
+        },
+    );
 
     Ok(())
 }
@@ -95,4 +143,29 @@ fn pod_pattern_regex(pattern: &str) -> Regex {
         let escaped = regex::escape(pattern);
         Regex::new(&format!("(?i){}", escaped)).expect("escaped pattern must be valid")
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_pod_pattern_regex_valid() {
+        let re = pod_pattern_regex("my-pod");
+        assert!(re.is_match("my-pod"));
+        assert!(!re.is_match("other"));
+    }
+
+    #[test]
+    fn test_pod_pattern_regex_invalid_falls_back_case_insensitive() {
+        let re = pod_pattern_regex("[invalid");
+        assert!(re.is_match("[invalid"));
+        assert!(re.is_match("[INVALID"));
+    }
+
+    #[test]
+    fn test_pod_pattern_regex_literal_bracket_escaped_on_fallback() {
+        let re = pod_pattern_regex("[");
+        assert!(re.is_match("["));
+    }
 }

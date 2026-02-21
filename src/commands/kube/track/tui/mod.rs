@@ -12,7 +12,7 @@ use ratatui::{
     layout::{Constraint, Layout, Margin, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span, Text},
-    widgets::{Block, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState},
+    widgets::{Block, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState, Wrap},
     Frame,
 };
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
@@ -260,7 +260,9 @@ impl TrackTui {
                     .as_bytes()
                     .into_text()
                     .unwrap_or_else(|_| Text::raw(&visible_slice));
-                let paragraph = Paragraph::new(text).block(block);
+                let paragraph = Paragraph::new(text)
+                    .block(block)
+                    .wrap(Wrap { trim: true });
 
                 frame.render_widget(paragraph, chunks[ci]);
 

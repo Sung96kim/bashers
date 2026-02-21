@@ -46,9 +46,12 @@ fn setup_uv(frozen: bool, rm: bool, dry_run: bool) -> Result<()> {
         return Ok(());
     }
 
-    let status = spinner::run_with_spinner(
+    let mut cmd = Command::new("uv");
+    cmd.args(&args);
+    let status = spinner::run_with_spinner_and_message(
         "Installing dependencies with uv...",
-        Command::new("uv").args(&args),
+        &mut cmd,
+        Some("Installation complete"),
     )?;
 
     if !status.success() {
@@ -74,9 +77,12 @@ fn setup_poetry(frozen: bool, rm: bool, dry_run: bool) -> Result<()> {
         return Ok(());
     }
 
-    let status = spinner::run_with_spinner(
+    let mut cmd = Command::new("poetry");
+    cmd.args(&args);
+    let status = spinner::run_with_spinner_and_message(
         "Installing dependencies with poetry...",
-        Command::new("poetry").args(&args),
+        &mut cmd,
+        Some("Installation complete"),
     )?;
 
     if !status.success() {
@@ -107,8 +113,13 @@ fn setup_cargo(frozen: bool, rm: bool, dry_run: bool) -> Result<()> {
         return Ok(());
     }
 
-    let status =
-        spinner::run_with_spinner("Building with cargo...", Command::new("cargo").args(&args))?;
+    let mut cmd = Command::new("cargo");
+    cmd.args(&args);
+    let status = spinner::run_with_spinner_and_message(
+        "Building with cargo...",
+        &mut cmd,
+        Some("Installation complete"),
+    )?;
 
     if !status.success() {
         anyhow::bail!("cargo build failed");
