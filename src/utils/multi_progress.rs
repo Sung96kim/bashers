@@ -40,7 +40,7 @@ where
 
     let result = op();
 
-    if let Err(_) = result {
+    if result.is_err() {
         pb.finish_with_message(failure_msg.as_ref().to_string());
         return result;
     }
