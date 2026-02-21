@@ -1,5 +1,11 @@
 # CHANGELOG
 
+## [0.8.6](https://github.com/Sung96kim/bashers/compare/v0.8.5...v0.8.6) - 2026-02-21
+
+### Added
+
+- Spinner updates ([#27](https://github.com/Sung96kim/bashers/pull/27))
+
 ## [0.8.5](https://github.com/Sung96kim/bashers/compare/v0.8.4...v0.8.5) - 2026-02-17
 
 ### Added
