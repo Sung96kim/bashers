@@ -103,6 +103,52 @@ where
     })
 }
 
+pub fn run_spinners_then_single_op<Item, F, FormatPrefix, FormatDone>(
+    multi: &MultiProgress,
+    items: &[Item],
+    format_prefix: FormatPrefix,
+    op: F,
+    format_done: FormatDone,
+) -> Result<()>
+where
+    F: FnOnce() -> Result<()>,
+    FormatPrefix: Fn(usize, usize, &Item) -> String,
+    FormatDone: Fn(&Item, bool) -> String,
+{
+    if items.is_empty() {
+        return op();
+    }
+
+    let style = ProgressStyle::default_spinner()
+        .template("{prefix}{spinner:.dim}{msg}")
+        .unwrap()
+        .tick_strings(SPINNER_TICKS);
+
+    let total = items.len();
+    let mut bars = Vec::with_capacity(total);
+    for (idx, item) in items.iter().enumerate() {
+        let one_indexed = idx + 1;
+        let prefix = format_prefix(one_indexed, total, item);
+        let pb = multi.add(
+            ProgressBar::new_spinner()
+                .with_style(style.clone())
+                .with_prefix(prefix)
+                .with_message(" Updating..."),
+        );
+        pb.enable_steady_tick(Duration::from_millis(TICK_MS));
+        bars.push(pb);
+    }
+
+    let result = op();
+
+    for (pb, item) in bars.into_iter().zip(items.iter()) {
+        let msg = format_done(item, result.is_ok());
+        pb.finish_with_message(msg);
+    }
+
+    result
+}
+
 pub fn run_parallel_spinners_sectioned<Item, R, FormatPrefix, FormatDone, PerItem>(
     multi: &MultiProgress,
     sections: Vec<(String, Vec<Item>)>,

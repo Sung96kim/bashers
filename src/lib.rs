@@ -29,7 +29,8 @@ pub fn run(args: Vec<String>) -> Result<()> {
             packages,
             dry_run,
             auto_select,
-        }) => commands::update::run(&packages, dry_run, auto_select)?,
+            verbose,
+        }) => commands::update::run(&packages, dry_run, auto_select, verbose)?,
         Some(cli::Commands::Setup {
             frozen,
             rm,

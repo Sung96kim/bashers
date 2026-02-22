@@ -91,6 +91,78 @@ fn list_cargo() -> Result<Vec<String>> {
     Ok(packages)
 }
 
+pub fn get_installed_version(project_type: ProjectType, package: &str) -> Result<Option<String>> {
+    match project_type {
+        ProjectType::Uv => get_version_uv(package),
+        ProjectType::Poetry => get_version_poetry(package),
+        ProjectType::Cargo => get_version_cargo(package),
+    }
+}
+
+fn get_version_uv(package: &str) -> Result<Option<String>> {
+    let output = Command::new("uv")
+        .args(["pip", "show", package])
+        .output()
+        .context("Failed to run uv pip show")?;
+    if !output.status.success() {
+        return Ok(None);
+    }
+    let stdout = String::from_utf8(output.stdout)?;
+    for line in stdout.lines() {
+        if let Some(v) = line.strip_prefix("Version:") {
+            return Ok(Some(v.trim().to_string()));
+        }
+    }
+    Ok(None)
+}
+
+fn get_version_poetry(package: &str) -> Result<Option<String>> {
+    let output = Command::new("poetry")
+        .args(["show", package])
+        .output()
+        .context("Failed to run poetry show")?;
+    if !output.status.success() {
+        return Ok(None);
+    }
+    let stdout = String::from_utf8(output.stdout)?;
+    for line in stdout.lines() {
+        if let Some(v) = line.strip_prefix("version") {
+            let v = v.trim_start_matches(|c| c == ' ' || c == ':');
+            if !v.is_empty() {
+                return Ok(Some(v.trim().to_string()));
+            }
+        }
+    }
+    Ok(None)
+}
+
+fn get_version_cargo(package: &str) -> Result<Option<String>> {
+    let output = Command::new("cargo")
+        .args(["tree", "-p", package, "--depth", "0"])
+        .output()
+        .context("Failed to run cargo tree")?;
+    if !output.status.success() {
+        return Ok(None);
+    }
+    let stdout = String::from_utf8(output.stdout)?;
+    for line in stdout.lines() {
+        let line = line
+            .trim()
+            .trim_start_matches("├── ")
+            .trim_start_matches("└── ");
+        if let Some(rest) = line.strip_prefix(package) {
+            let rest = rest.trim();
+            if let Some(version) = rest.strip_prefix('v') {
+                return Ok(Some(version.to_string()));
+            }
+            if !rest.is_empty() && rest.chars().next().map(|c| c.is_ascii_digit()) == Some(true) {
+                return Ok(Some(rest.to_string()));
+            }
+        }
+    }
+    Ok(None)
+}
+
 pub fn fuzzy_match(packages: &[String], pattern: &str) -> Result<Vec<String>> {
     use fuzzy_matcher::skim::SkimMatcherV2;
     use fuzzy_matcher::FuzzyMatcher;
@@ -223,12 +295,19 @@ pub fn select_many_with_auto_select(
 }
 
 fn select_many_with_inquire(matches: &[String]) -> Result<Vec<String>> {
+    use inquire::list_option::ListOption;
     use inquire::MultiSelect;
+
+    let formatter = |opts: &[ListOption<&String>]| {
+        let names: Vec<&str> = opts.iter().map(|o| o.value.as_str()).collect();
+        format!("Selected: {}", names.join(", "))
+    };
 
     let selected = MultiSelect::new(
         "Select packages (space to toggle, enter to confirm):",
         matches.to_vec(),
     )
+    .with_formatter(&formatter)
     .with_page_size(10)
     .prompt()
     .context("Failed to select packages")?;

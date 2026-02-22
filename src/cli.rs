@@ -20,6 +20,9 @@ pub enum Commands {
         /// Run command in non-interactive mode - will auto select the closest matching library
         #[arg(short = 'y')]
         auto_select: bool,
+        /// Show output from the underlying dependency manager (cargo/uv/poetry)
+        #[arg(short = 'v', long)]
+        verbose: bool,
     },
     /// Install project dependencies
     Setup {

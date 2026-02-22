@@ -4,7 +4,32 @@ use termcolor::{Color, ColorChoice, ColorSpec, StandardStream, WriteColor};
 pub const ANSI_CYAN_BOLD: &str = "\x1b[36m\x1b[1m";
 pub const ANSI_GREEN: &str = "\x1b[32m";
 pub const ANSI_RED: &str = "\x1b[31m";
+pub const ANSI_YELLOW: &str = "\x1b[33m";
+pub const ANSI_DIM: &str = "\x1b[2m";
 pub const ANSI_RESET: &str = "\x1b[0m";
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum VersionChange {
+    Upgraded,
+    Unchanged,
+    Downgraded,
+}
+
+pub fn format_bumped_message_colored(before: &str, after: &str, change: VersionChange) -> String {
+    if atty::is(atty::Stream::Stderr) {
+        let after_color = match change {
+            VersionChange::Upgraded => ANSI_GREEN,
+            VersionChange::Unchanged => ANSI_DIM,
+            VersionChange::Downgraded => ANSI_RED,
+        };
+        format!(
+            "bumped from {}{}{} -> {}{}{}",
+            ANSI_YELLOW, before, ANSI_RESET, after_color, after, ANSI_RESET
+        )
+    } else {
+        format!("bumped from {} -> {}", before, after)
+    }
+}
 
 pub struct Colors {
     stdout: StandardStream,
@@ -77,6 +102,43 @@ pub fn print_update(package: &str) {
     let _ = colors.print(": updating ");
     let _ = colors.green();
     let _ = colors.print(package);
+    let _ = colors.reset();
+    let _ = colors.println("");
+}
+
+pub fn print_updated_version(package: &str, version: &str) {
+    let v = if version.starts_with('v') {
+        version.to_string()
+    } else {
+        format!("v{}", version)
+    };
+    let mut colors = Colors::new();
+    let _ = colors.green();
+    let _ = colors.print("[update]");
+    let _ = colors.reset();
+    let _ = colors.print(": ");
+    let _ = colors.green();
+    let _ = colors.print(package);
+    let _ = colors.reset();
+    let _ = colors.println(&format!(" is now {}", v));
+}
+
+pub fn print_bumped_version(package: &str, before: &str, after: &str) {
+    let mut colors = Colors::new();
+    let _ = colors.green();
+    let _ = colors.print("[update]");
+    let _ = colors.reset();
+    let _ = colors.print(": ");
+    let _ = colors.green();
+    let _ = colors.print(package);
+    let _ = colors.reset();
+    let _ = colors.print(" bumped from ");
+    let _ = colors.yellow();
+    let _ = colors.print(before);
+    let _ = colors.reset();
+    let _ = colors.print(" -> ");
+    let _ = colors.green();
+    let _ = colors.print(after);
     let _ = colors.reset();
     let _ = colors.println("");
 }
