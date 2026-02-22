@@ -54,7 +54,8 @@ jobs:
         uses: actions/checkout@v6
         with:
           fetch-depth: 0
-          persist-credentials: false
+          persist-credentials: true
+          token: ${{ secrets.GIT_TOKEN || secrets.GITHUB_TOKEN }}
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
       - name: Run release-plz
@@ -65,6 +66,30 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GIT_TOKEN || secrets.GITHUB_TOKEN }}
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+      - name: Sync pyproject.toml version to release PR
+        if: steps.release-plz.outputs.pr != ''
+        env:
+          GH_TOKEN: ${{ secrets.GIT_TOKEN || secrets.GITHUB_TOKEN }}
+          PR_JSON: ${{ steps.release-plz.outputs.pr }}
+        run: |
+          PR_NUMBER=$(echo "$PR_JSON" | jq -r '.number')
+          if [ -z "$PR_NUMBER" ] || [ "$PR_NUMBER" = 'null' ]; then
+            exit 0
+          fi
+          gh pr checkout "$PR_NUMBER"
+          VERSION=$(sed -n 's/^version = "\(.*\)"$/\1/p' Cargo.toml | head -1)
+          if [ -n "$VERSION" ]; then
+            sed -i "s/^version = \".*\"$/version = \"$VERSION\"/" pyproject.toml
+            git add pyproject.toml
+            if git diff --staged --quiet; then
+              echo "pyproject.toml already at version $VERSION"
+            else
+              git config user.name "github-actions[bot]"
+              git config user.email "github-actions[bot]@users.noreply.github.com"
+              git commit -m "chore: sync pyproject.toml version with Cargo.toml"
+              git push
+            fi
+          fi
       - name: Merge release PR
         if: steps.release-plz.outputs.pr != ''
         env:

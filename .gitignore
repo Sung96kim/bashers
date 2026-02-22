@@ -47,3 +47,6 @@ Cargo.lock
 /coverage/
 *.xml
 tarpaulin-report.html
+
+# Python
+uv.lock
