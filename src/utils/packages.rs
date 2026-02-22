@@ -91,6 +91,78 @@ fn list_cargo() -> Result<Vec<String>> {
     Ok(packages)
 }
 
+pub fn get_installed_version(project_type: ProjectType, package: &str) -> Result<Option<String>> {
+    match project_type {
+        ProjectType::Uv => get_version_uv(package),
+        ProjectType::Poetry => get_version_poetry(package),
+        ProjectType::Cargo => get_version_cargo(package),
+    }
+}
+
+fn get_version_uv(package: &str) -> Result<Option<String>> {
+    let output = Command::new("uv")
+        .args(["pip", "show", package])
+        .output()
+        .context("Failed to run uv pip show")?;
+    if !output.status.success() {
+        return Ok(None);
+    }
+    let stdout = String::from_utf8(output.stdout)?;
+    for line in stdout.lines() {
+        if let Some(v) = line.strip_prefix("Version:") {
+            return Ok(Some(v.trim().to_string()));
+        }
+    }
+    Ok(None)
+}
+
+fn get_version_poetry(package: &str) -> Result<Option<String>> {
+    let output = Command::new("poetry")
+        .args(["show", package])
+        .output()
+        .context("Failed to run poetry show")?;
+    if !output.status.success() {
+        return Ok(None);
+    }
+    let stdout = String::from_utf8(output.stdout)?;
+    for line in stdout.lines() {
+        if let Some(v) = line.strip_prefix("version") {
+            let v = v.trim_start_matches([' ', ':']);
+            if !v.is_empty() {
+                return Ok(Some(v.trim().to_string()));
+            }
+        }
+    }
+    Ok(None)
+}
+
+fn get_version_cargo(package: &str) -> Result<Option<String>> {
+    let output = Command::new("cargo")
+        .args(["tree", "-p", package, "--depth", "0"])
+        .output()
+        .context("Failed to run cargo tree")?;
+    if !output.status.success() {
+        return Ok(None);
+    }
+    let stdout = String::from_utf8(output.stdout)?;
+    for line in stdout.lines() {
+        let line = line
+            .trim()
+            .trim_start_matches("├── ")
+            .trim_start_matches("└── ");
+        if let Some(rest) = line.strip_prefix(package) {
+            let rest = rest.trim();
+            if let Some(version) = rest.strip_prefix('v') {
+                return Ok(Some(version.to_string()));
+            }
+            if !rest.is_empty() && rest.chars().next().map(|c| c.is_ascii_digit()) == Some(true) {
+                return Ok(Some(rest.to_string()));
+            }
+        }
+    }
+    Ok(None)
+}
+
 pub fn fuzzy_match(packages: &[String], pattern: &str) -> Result<Vec<String>> {
     use fuzzy_matcher::skim::SkimMatcherV2;
     use fuzzy_matcher::FuzzyMatcher;
@@ -167,6 +239,78 @@ fn select_with_inquire(matches: &[String]) -> Result<String> {
         .with_page_size(10)
         .prompt()
         .context("Failed to select package")?;
+
+    Ok(selected)
+}
+
+pub fn select_many(matches: Vec<String>) -> Result<Vec<String>> {
+    if matches.is_empty() {
+        anyhow::bail!("No packages found");
+    }
+
+    if matches.len() == 1 {
+        return Ok(matches);
+    }
+
+    if atty::is(atty::Stream::Stdin) {
+        return select_many_with_inquire(&matches);
+    }
+
+    eprintln!("Multiple packages found (multi-select requires interactive terminal):");
+    for pkg in &matches {
+        eprintln!("  {}", pkg);
+    }
+    anyhow::bail!("Multi-select requires interactive selection");
+}
+
+pub fn select_many_with_auto_select(
+    matches: Vec<String>,
+    auto_select: bool,
+) -> Result<Vec<String>> {
+    if matches.is_empty() {
+        anyhow::bail!("No packages found");
+    }
+
+    if matches.len() == 1 {
+        return Ok(matches);
+    }
+
+    if auto_select {
+        eprintln!("Selecting all {} matching packages:", matches.len());
+        for pkg in &matches {
+            eprintln!("  {}", pkg);
+        }
+        return Ok(matches);
+    }
+
+    if atty::is(atty::Stream::Stdin) {
+        return select_many_with_inquire(&matches);
+    }
+
+    eprintln!("Multiple packages found (multi-select requires interactive terminal):");
+    for pkg in &matches {
+        eprintln!("  {}", pkg);
+    }
+    anyhow::bail!("Multi-select requires interactive selection");
+}
+
+fn select_many_with_inquire(matches: &[String]) -> Result<Vec<String>> {
+    use inquire::list_option::ListOption;
+    use inquire::MultiSelect;
+
+    let formatter = |opts: &[ListOption<&String>]| {
+        let names: Vec<&str> = opts.iter().map(|o| o.value.as_str()).collect();
+        format!("Selected: {}", names.join(", "))
+    };
+
+    let selected = MultiSelect::new(
+        "Select packages (space to toggle, enter to confirm):",
+        matches.to_vec(),
+    )
+    .with_formatter(&formatter)
+    .with_page_size(10)
+    .prompt()
+    .context("Failed to select packages")?;
 
     Ok(selected)
 }
@@ -331,6 +475,48 @@ mod tests {
         let result = select_one_with_auto_select(matches, false);
         // In non-interactive environment, this should fail
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_select_many_empty() {
+        let result = select_many(vec![]);
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("No packages found"));
+    }
+
+    #[test]
+    fn test_select_many_single() {
+        let matches = vec!["clap".to_string()];
+        let result = select_many(matches.clone());
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), vec!["clap".to_string()]);
+    }
+
+    #[test]
+    fn test_select_many_multiple_non_interactive() {
+        let matches = vec!["clap".to_string(), "anyhow".to_string()];
+        let result = select_many(matches);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("interactive"));
+    }
+
+    #[test]
+    fn test_select_many_with_auto_select() {
+        let matches = vec!["clap".to_string(), "anyhow".to_string()];
+        let result = select_many_with_auto_select(matches.clone(), true);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), matches);
+    }
+
+    #[test]
+    fn test_select_many_with_auto_select_single() {
+        let matches = vec!["clap".to_string()];
+        let result = select_many_with_auto_select(matches.clone(), true);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), matches);
     }
 
     #[test]

@@ -145,7 +145,7 @@ pub fn run_with_spinner_and_message(
     let mut sp = if should_show_spinner() {
         let msg = colorize_spinner_message(message, Color::Cyan);
         Some(Spinner::new_with_stream(
-            spinners::Material,
+            spinners::Arrow2,
             msg,
             Color::Cyan,
             Streams::Stderr,
