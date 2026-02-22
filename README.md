@@ -1,63 +1,121 @@
 # Bashers
 
-CLI command helpers (Rust). Install: `cargo install bashers`. Both `bashers` and `bs` go to `~/.cargo/bin`; ensure it’s in PATH before pyenv/shims.
+CLI command helpers in Rust. Install as `bashers` or `bs`; both binaries go to the same place.
 
-**Install from PyPI:** `pip install bashers` (or `pip install --upgrade bashers` to get the latest). PyPI wheels are built for Python 3.11, 3.12, and 3.13; if you’re on 3.13 and see an old version, a 3.13 wheel may not have been published yet for that release—use the next release or `cargo install bashers` / install from repo.
+## Installation
 
-**Install from repo:** `./scripts/install.sh` (or `curl -sSf https://raw.githubusercontent.com/Sung96kim/bashers/main/scripts/install.sh | sh`). Use `--no-path` to skip profile changes.
+- **Cargo:** `cargo install bashers`  
+  Puts `bashers` and `bs` in `~/.cargo/bin`. Ensure that directory is in PATH (and before pyenv/shims if you use pyenv).
+
+- **PyPI:** `pip install bashers` or `pip install --upgrade bashers`  
+  Wheels for Python 3.11, 3.12, 3.13. If you're on 3.13 and see an old version, a 3.13 wheel may not exist yet—use the next release, or install from Cargo/repo.
+
+- **From repo:**  
+  `./scripts/install.sh`  
+  Or: `curl -sSf https://raw.githubusercontent.com/Sung96kim/bashers/main/scripts/install.sh | sh`  
+  Use `--no-path` to skip profile changes.
 
 ## Usage
 
 ```bash
-bashers update              # update deps (optional packages; fuzzy match; -v verbose, -y auto-select)
-bashers update -v pkg1 pkg2 # update selected packages, show tool output at end
-bashers setup               # install deps (--frozen, --rm, --dry-run)
-bashers show                # list packages
-bashers git sync            # checkout default, pull, fetch (--current = current branch only); bs sync works
-bashers kube kmg <pattern>  # pod describe + Image lines
-bashers kube track <pattern> # follow logs (--err-only, --simple)
-bashers docker build [ -f <path> ]  # build from Dockerfile (default: ./Dockerfile; -t tag, --no-cache, -c context); bs build works
-bashers watch -n 2 -- <cmd> # run command repeatedly, highlight changes (-n interval, --no-diff)
-bashers self update         # upgrade bashers
+bashers update                    # deps (optional packages; fuzzy match; -v verbose, -y auto-select)
+bashers update -v pkg1 pkg2       # selected packages, show tool output at end
+bashers setup                     # install deps (--frozen, --rm, --dry-run)
+bashers show                      # list packages
+bashers git sync                  # default branch, pull, fetch (--current = current branch only)
+bashers kube kmg <pattern>        # pod describe + Image lines
+bashers kube track <pattern>      # follow logs (--err-only, --simple)
+bashers docker build [-f <path>]  # Dockerfile (default ./Dockerfile; -t tag, --no-cache, -c context)
+bashers watch -n 2 -- <cmd>       # run repeatedly, highlight changes (-n interval, --no-diff)
+bashers self update               # upgrade bashers
 bashers version
 ```
 
-| Command | Description |
-|---------|-------------|
-| **update** | Update deps (cargo/uv/poetry); optional package names (fuzzy match, multi-select); `-v` show tool output at end, `-y` auto-select |
-| **setup** | Install project deps |
-| **show** | List installed packages |
-| **git** | `sync` (default branch or --current) |
-| **kube** | `kmg`, `track` |
-| **docker** | `build` (optional Dockerfile path [default: ./Dockerfile], tag, no-cache, context) |
-| **watch** | Run command on an interval, diff highlight (green = changed) |
-| **self** | `update` |
-| **version** | Print version |
+`bs` works as an alias for `bashers` (e.g. `bs sync`, `bs build`). Run `bashers <cmd> --help` for options.
 
-`bashers <cmd> --help` for options.
+### Commands
+
+| Command   | Description |
+| --------- | ----------- |
+| **update** | Deps (cargo/uv/poetry). Optional package names (fuzzy match, multi-select). `-v` show tool output at end, `-y` auto-select. |
+| **setup**  | Install project deps. |
+| **show**   | List installed packages. |
+| **git**    | `sync` (default branch or `--current`). |
+| **kube**   | `kmg`, `track`. |
+| **docker** | `build` (optional Dockerfile path, tag, no-cache, context). |
+| **watch**  | Run on an interval, diff highlight (green = changed). |
+| **self**   | `update`. |
+| **version** | Print version. |
 
 ## Features
 
-Fuzzy package matching, fzf when multiple matches, uv & poetry, color output, dry-run.
+- Fuzzy package matching; multi-select when multiple matches
+- cargo, uv & poetry
+- Color output, dry-run
 
 ## Development
 
-**Build:** `cargo build` / `cargo build --release`
+### Build & test
 
-**Test:** `cargo test` (unit: `cargo test --lib`; one test: `cargo test test_fuzzy_match_exact`)
+```bash
+cargo build
+cargo build --release
+cargo test
+```
 
-**Quality:** `cargo fmt` · `cargo clippy` · `cargo fmt --check` · `cargo clippy -- -D warnings`
+Run a single test: `cargo test test_fuzzy_match_exact`
 
-**Run:** `cargo run --quiet -- <cmd>` or `./target/debug/bashers <cmd>`. Optional: `NO_SPINNER=1` to disable spinner.
+### Code quality
 
-**Coverage:** `cargo install cargo-tarpaulin --locked` then `cargo tarpaulin --out Xml --output-dir coverage --timeout 120`
+```bash
+cargo fmt
+cargo clippy -- -D warnings
+```
 
-**Python wheel (build and test locally):** Install [maturin](https://pypi.org/project/maturin/) (`pip install maturin`). From the repo root: `maturin build --release --features pyo3`. Wheels are written to `target/wheels/`. Install with a matching Python (e.g. 3.13): `python3 -m pip install --force-reinstall target/wheels/bashers-*-cp313-*.whl`. Run `bashers --help` or `bashers version` to confirm.
+### Running locally
 
-**New command:** Add module under `src/commands/` (or `src/commands/<group>/`), add variant in `src/cli.rs`, wire in `src/lib.rs`, then `cargo build`. When adding or changing any CLI command, update the Usage section and the Command table above.
+| Method | Command |
+|--------|--------|
+| Via cargo | `cargo run --quiet -- <cmd>` |
+| Binary | `./target/debug/bashers <cmd>` |
+| No install (script) | `./scripts/local.sh <cmd>` |
+
+Set `NO_SPINNER=1` to disable the spinner.
+
+### Scripts (no install)
+
+- **`./scripts/local.sh <cmd>`** — Runs the repo binary via `cargo run --bin bashers`. Example: `./scripts/local.sh update`.
+- **`./scripts/setup-local.sh`** — Runs `cargo check`, `cargo build`, `cargo test`, then reminds you to use `./scripts/local.sh`.
+
+### Coverage
+
+```bash
+cargo install cargo-tarpaulin --locked
+cargo tarpaulin --out Xml --output-dir coverage --timeout 120
+```
+
+### Python wheel (build & test)
+
+1. Install [maturin](https://pypi.org/project/maturin/): `pip install maturin`
+2. From repo root, build: `maturin build --release --features pyo3`  
+   Wheels are written to `target/wheels/`.
+3. Install with a matching Python (e.g. 3.13):
+
+   ```bash
+   python3 -m pip install --force-reinstall target/wheels/bashers-*-cp313-*.whl
+   ```
+
+4. Confirm: `bashers --help` or `bashers version`
+
+### Adding a new command
+
+1. Add a module under `src/commands/` (or `src/commands/<group>/`).
+2. Add the variant in `src/cli.rs` and wire it in `src/lib.rs`.
+3. Run `cargo build`.
+4. Update the **Usage** section and **Commands** table in this README.
 
 ## Releasing
 
-Releases are automated with **release-plz** on push to main. Use [Conventional Commits](https://www.conventionalcommits.org/): `feat:` (minor), `fix:` (patch), `feat!:` or `BREAKING CHANGE:` (major). Push to main → version/changelog PR, merge → publish to crates.io and GitHub Release. The **tag and GitHub Release are created in the workflow run triggered by the merge** (not the run that opened the PR). Set `CARGO_REGISTRY_TOKEN` if publishing to crates.io. First time: run `cargo publish` once so release-plz knows the current version.
+**Automated (release-plz):** On push to main, use [Conventional Commits](https://www.conventionalcommits.org/): `feat:` (minor), `fix:` (patch), `feat!:` or `BREAKING CHANGE:` (major). Push → version/changelog PR → merge → publish to crates.io and GitHub Release. The tag and GitHub Release are created in the workflow run triggered by the merge. Set `CARGO_REGISTRY_TOKEN` for crates.io. First time: run `cargo publish` once so release-plz knows the current version.
 
-Manual: bump version in `Cargo.toml`, tag `vX.Y.Z`, push tag; workflow builds and creates the GitHub Release.
+**Manual:** Bump version in `Cargo.toml`, tag `vX.Y.Z`, push tag; workflow builds and creates the GitHub Release.
