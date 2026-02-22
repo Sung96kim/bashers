@@ -9,7 +9,8 @@ CLI command helpers (Rust). Install: `cargo install bashers`. Both `bashers` and
 ## Usage
 
 ```bash
-bashers update              # update deps (fuzzy match optional)
+bashers update              # update deps (optional packages; fuzzy match; -v verbose, -y auto-select)
+bashers update -v pkg1 pkg2 # update selected packages, show tool output at end
 bashers setup               # install deps (--frozen, --rm, --dry-run)
 bashers show                # list packages
 bashers git sync            # checkout default, pull, fetch (--current = current branch only); bs sync works
@@ -23,7 +24,7 @@ bashers version
 
 | Command | Description |
 |---------|-------------|
-| **update** | Update deps (uv/poetry), fuzzy match |
+| **update** | Update deps (cargo/uv/poetry); optional package names (fuzzy match, multi-select); `-v` show tool output at end, `-y` auto-select |
 | **setup** | Install project deps |
 | **show** | List installed packages |
 | **git** | `sync` (default branch or --current) |

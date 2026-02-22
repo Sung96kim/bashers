@@ -127,7 +127,7 @@ fn get_version_poetry(package: &str) -> Result<Option<String>> {
     let stdout = String::from_utf8(output.stdout)?;
     for line in stdout.lines() {
         if let Some(v) = line.strip_prefix("version") {
-            let v = v.trim_start_matches(|c| c == ' ' || c == ':');
+            let v = v.trim_start_matches([' ', ':']);
             if !v.is_empty() {
                 return Ok(Some(v.trim().to_string()));
             }

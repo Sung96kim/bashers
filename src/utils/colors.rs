@@ -188,4 +188,25 @@ mod tests {
         assert!(colors.println("bold cyan").is_ok());
         assert!(colors.reset().is_ok());
     }
+
+    #[test]
+    fn test_format_bumped_message_colored_contains_versions() {
+        for change in [
+            VersionChange::Upgraded,
+            VersionChange::Unchanged,
+            VersionChange::Downgraded,
+        ] {
+            let s = format_bumped_message_colored("v1.0.0", "v1.0.102", change);
+            assert!(s.contains("bumped from"));
+            assert!(s.contains("1.0.0"));
+            assert!(s.contains("1.0.102"));
+            assert!(s.contains(" -> "));
+        }
+    }
+
+    #[test]
+    fn test_version_change_equality() {
+        assert_eq!(VersionChange::Upgraded, VersionChange::Upgraded);
+        assert_ne!(VersionChange::Upgraded, VersionChange::Downgraded);
+    }
 }

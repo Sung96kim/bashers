@@ -358,6 +358,54 @@ fn update_all(project_type: project::ProjectType, dry_run: bool, verbose: bool) 
 mod tests {
     use super::*;
     use crate::utils::project::ProjectType;
+    use std::cmp::Ordering;
+
+    #[test]
+    fn test_fmt_version_adds_v_prefix() {
+        assert_eq!(fmt_version("1.0.0"), "v1.0.0");
+        assert_eq!(fmt_version("0.29.0"), "v0.29.0");
+    }
+
+    #[test]
+    fn test_fmt_version_preserves_existing_v() {
+        assert_eq!(fmt_version("v1.0.0"), "v1.0.0");
+    }
+
+    #[test]
+    fn test_cmp_version_upgraded() {
+        assert_eq!(cmp_version("1.0.0", "1.0.102"), Ordering::Less);
+        assert_eq!(cmp_version("v1.0.0", "1.0.102"), Ordering::Less);
+        assert_eq!(cmp_version("0.29.0", "0.30.0"), Ordering::Less);
+        assert_eq!(cmp_version("1.0", "1.0.1"), Ordering::Less);
+    }
+
+    #[test]
+    fn test_cmp_version_unchanged() {
+        assert_eq!(cmp_version("1.0.102", "1.0.102"), Ordering::Equal);
+        assert_eq!(cmp_version("v1.0.102", "v1.0.102"), Ordering::Equal);
+    }
+
+    #[test]
+    fn test_cmp_version_downgraded() {
+        assert_eq!(cmp_version("1.0.102", "1.0.0"), Ordering::Greater);
+        assert_eq!(cmp_version("1.0.1", "1.0"), Ordering::Greater);
+    }
+
+    #[test]
+    fn test_version_change() {
+        assert_eq!(
+            version_change("1.0.0", "1.0.102"),
+            colors::VersionChange::Upgraded
+        );
+        assert_eq!(
+            version_change("1.0.102", "1.0.102"),
+            colors::VersionChange::Unchanged
+        );
+        assert_eq!(
+            version_change("1.0.102", "1.0.0"),
+            colors::VersionChange::Downgraded
+        );
+    }
 
     #[test]
     fn test_update_packages_dry_run_uv() {
