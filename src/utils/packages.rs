@@ -171,6 +171,71 @@ fn select_with_inquire(matches: &[String]) -> Result<String> {
     Ok(selected)
 }
 
+pub fn select_many(matches: Vec<String>) -> Result<Vec<String>> {
+    if matches.is_empty() {
+        anyhow::bail!("No packages found");
+    }
+
+    if matches.len() == 1 {
+        return Ok(matches);
+    }
+
+    if atty::is(atty::Stream::Stdin) {
+        return select_many_with_inquire(&matches);
+    }
+
+    eprintln!("Multiple packages found (multi-select requires interactive terminal):");
+    for pkg in &matches {
+        eprintln!("  {}", pkg);
+    }
+    anyhow::bail!("Multi-select requires interactive selection");
+}
+
+pub fn select_many_with_auto_select(
+    matches: Vec<String>,
+    auto_select: bool,
+) -> Result<Vec<String>> {
+    if matches.is_empty() {
+        anyhow::bail!("No packages found");
+    }
+
+    if matches.len() == 1 {
+        return Ok(matches);
+    }
+
+    if auto_select {
+        eprintln!("Selecting all {} matching packages:", matches.len());
+        for pkg in &matches {
+            eprintln!("  {}", pkg);
+        }
+        return Ok(matches);
+    }
+
+    if atty::is(atty::Stream::Stdin) {
+        return select_many_with_inquire(&matches);
+    }
+
+    eprintln!("Multiple packages found (multi-select requires interactive terminal):");
+    for pkg in &matches {
+        eprintln!("  {}", pkg);
+    }
+    anyhow::bail!("Multi-select requires interactive selection");
+}
+
+fn select_many_with_inquire(matches: &[String]) -> Result<Vec<String>> {
+    use inquire::MultiSelect;
+
+    let selected = MultiSelect::new(
+        "Select packages (space to toggle, enter to confirm):",
+        matches.to_vec(),
+    )
+    .with_page_size(10)
+    .prompt()
+    .context("Failed to select packages")?;
+
+    Ok(selected)
+}
+
 // Helper function to parse cargo tree output (extracted for testing)
 #[cfg(test)]
 fn parse_cargo_tree_output(output: &str) -> Vec<String> {
@@ -331,6 +396,48 @@ mod tests {
         let result = select_one_with_auto_select(matches, false);
         // In non-interactive environment, this should fail
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_select_many_empty() {
+        let result = select_many(vec![]);
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("No packages found"));
+    }
+
+    #[test]
+    fn test_select_many_single() {
+        let matches = vec!["clap".to_string()];
+        let result = select_many(matches.clone());
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), vec!["clap".to_string()]);
+    }
+
+    #[test]
+    fn test_select_many_multiple_non_interactive() {
+        let matches = vec!["clap".to_string(), "anyhow".to_string()];
+        let result = select_many(matches);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("interactive"));
+    }
+
+    #[test]
+    fn test_select_many_with_auto_select() {
+        let matches = vec!["clap".to_string(), "anyhow".to_string()];
+        let result = select_many_with_auto_select(matches.clone(), true);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), matches);
+    }
+
+    #[test]
+    fn test_select_many_with_auto_select_single() {
+        let matches = vec!["clap".to_string()];
+        let result = select_many_with_auto_select(matches.clone(), true);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), matches);
     }
 
     #[test]

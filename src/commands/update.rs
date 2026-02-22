@@ -2,40 +2,83 @@ use crate::utils::{colors, packages, project, spinner};
 use anyhow::{Context, Result};
 use std::process::Command;
 
-pub fn run(package: Option<&str>, dry_run: bool, auto_select: bool) -> Result<()> {
+pub fn run(package_patterns: &[String], dry_run: bool, auto_select: bool) -> Result<()> {
     let project_type = project::detect()?.context("No uv/poetry/cargo project found")?;
 
-    if let Some(pkg_pattern) = package {
-        let all_packages = packages::list(project_type)?;
-        let matches = packages::fuzzy_match(&all_packages, pkg_pattern)?;
-        let selected = if dry_run || auto_select {
-            packages::select_one_with_auto_select(matches, true)?
-        } else {
-            packages::select_one(matches)?
-        };
-
-        colors::print_update(&selected);
-
-        update_package(project_type, &selected, dry_run)?;
-    } else {
+    if package_patterns.is_empty() {
         update_all(project_type, dry_run)?;
+        return Ok(());
     }
+
+    let all_packages = packages::list(project_type)?;
+    let mut combined: Vec<String> = Vec::new();
+    for pattern in package_patterns {
+        let matches = packages::fuzzy_match(&all_packages, pattern)?;
+        for m in matches {
+            if !combined.contains(&m) {
+                combined.push(m);
+            }
+        }
+    }
+
+    if combined.is_empty() {
+        anyhow::bail!("No packages matched");
+    }
+
+    let selected: Vec<String> = if package_patterns.len() == 1 {
+        let one = if dry_run || auto_select {
+            packages::select_one_with_auto_select(combined, auto_select)?
+        } else {
+            packages::select_one(combined)?
+        };
+        vec![one]
+    } else {
+        let many = if dry_run || auto_select {
+            packages::select_many_with_auto_select(combined, auto_select)?
+        } else {
+            packages::select_many(combined)?
+        };
+        if many.is_empty() {
+            anyhow::bail!("No packages selected");
+        }
+        many
+    };
+
+    for pkg in &selected {
+        colors::print_update(pkg);
+    }
+    update_packages(project_type, &selected, dry_run)?;
 
     Ok(())
 }
 
-fn update_package(project_type: project::ProjectType, package: &str, dry_run: bool) -> Result<()> {
+fn update_packages(
+    project_type: project::ProjectType,
+    packages: &[String],
+    dry_run: bool,
+) -> Result<()> {
+    if packages.is_empty() {
+        return Ok(());
+    }
+
     if dry_run {
         match project_type {
             project::ProjectType::Uv => {
-                println!("uv lock --upgrade-package \"{}\"", package);
+                for p in packages {
+                    println!("uv lock --upgrade-package \"{}\"", p);
+                }
                 println!("uv sync --all-extras");
             }
             project::ProjectType::Poetry => {
-                println!("poetry update \"{}\"", package);
+                let args: Vec<&str> = packages.iter().map(String::as_str).collect();
+                println!("poetry update {}", args.join(" "));
             }
             project::ProjectType::Cargo => {
-                println!("cargo update -p \"{}\"", package);
+                let args: Vec<String> = packages
+                    .iter()
+                    .flat_map(|p| vec!["-p".to_string(), p.clone()])
+                    .collect();
+                println!("cargo update {}", args.join(" "));
             }
         }
         return Ok(());
@@ -43,48 +86,44 @@ fn update_package(project_type: project::ProjectType, package: &str, dry_run: bo
 
     match project_type {
         project::ProjectType::Uv => {
-            let status1 = spinner::run_with_spinner(
-                &format!("Updating {}...", package),
-                Command::new("uv").args(["lock", "--upgrade-package", package]),
-            )?;
-
+            let mut lock = Command::new("uv");
+            lock.arg("lock");
+            for p in packages {
+                lock.args(["--upgrade-package", p]);
+            }
+            let status1 = spinner::run_with_spinner("Updating lockfile...", &mut lock)?;
             if !status1.success() {
                 anyhow::bail!("uv lock failed");
             }
-
             let status2 = spinner::run_with_spinner(
-                &format!("Syncing {}...", package),
+                "Syncing...",
                 Command::new("uv").args(["sync", "--all-extras"]),
             )?;
-
             if !status2.success() {
                 anyhow::bail!("uv sync failed");
             }
-
             Ok(())
         }
         project::ProjectType::Poetry => {
             let status = spinner::run_with_spinner(
-                &format!("Updating {}...", package),
-                Command::new("poetry").args(["update", package]),
+                "Updating packages...",
+                Command::new("poetry").arg("update").args(packages),
             )?;
-
             if !status.success() {
                 anyhow::bail!("poetry update failed");
             }
-
             Ok(())
         }
         project::ProjectType::Cargo => {
-            let status = spinner::run_with_spinner(
-                &format!("Updating {}...", package),
-                Command::new("cargo").args(["update", "-p", package]),
-            )?;
-
+            let mut cmd = Command::new("cargo");
+            cmd.arg("update");
+            for p in packages {
+                cmd.args(["-p", p]);
+            }
+            let status = spinner::run_with_spinner("Updating packages...", &mut cmd)?;
             if !status.success() {
                 anyhow::bail!("cargo update failed");
             }
-
             Ok(())
         }
     }
@@ -162,32 +201,38 @@ mod tests {
     use crate::utils::project::ProjectType;
 
     #[test]
-    fn test_update_package_dry_run_uv() {
-        let result = update_package(ProjectType::Uv, "test-package", true);
+    fn test_update_packages_dry_run_uv() {
+        let result = update_packages(ProjectType::Uv, &["test-package".into()], true);
         assert!(result.is_ok());
     }
 
     #[test]
-    fn test_update_package_dry_run_poetry() {
-        let result = update_package(ProjectType::Poetry, "test-package", true);
+    fn test_update_packages_dry_run_poetry() {
+        let result = update_packages(ProjectType::Poetry, &["test-package".into()], true);
         assert!(result.is_ok());
     }
 
     #[test]
-    fn test_update_package_dry_run_cargo() {
-        let result = update_package(ProjectType::Cargo, "test-package", true);
+    fn test_update_packages_dry_run_cargo() {
+        let result = update_packages(ProjectType::Cargo, &["test-package".into()], true);
         assert!(result.is_ok());
     }
 
     #[test]
-    fn test_update_package_dry_run_empty_package() {
-        let result = update_package(ProjectType::Cargo, "", true);
+    fn test_update_packages_dry_run_empty() {
+        let result = update_packages(ProjectType::Cargo, &[], true);
         assert!(result.is_ok());
     }
 
     #[test]
-    fn test_update_package_dry_run_special_chars() {
-        let result = update_package(ProjectType::Cargo, "test-package_v1.0", true);
+    fn test_update_packages_dry_run_special_chars() {
+        let result = update_packages(ProjectType::Cargo, &["test-package_v1.0".into()], true);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_update_packages_dry_run_multiple() {
+        let result = update_packages(ProjectType::Cargo, &["pkg-a".into(), "pkg-b".into()], true);
         assert!(result.is_ok());
     }
 
@@ -210,10 +255,8 @@ mod tests {
     }
 
     #[test]
-    fn test_update_package_output_format() {
-        // Test that dry-run outputs are properly formatted
-        // We can't easily capture println in tests, but we can verify the function succeeds
-        let result = update_package(ProjectType::Cargo, "test", true);
+    fn test_update_packages_output_format() {
+        let result = update_packages(ProjectType::Cargo, &["test".into()], true);
         assert!(result.is_ok());
     }
 
@@ -224,9 +267,8 @@ mod tests {
     }
 
     #[test]
-    fn test_update_package_with_special_chars() {
-        // Test package names with special characters
-        let result = update_package(ProjectType::Cargo, "test-package_v1.0", true);
+    fn test_update_packages_with_special_chars() {
+        let result = update_packages(ProjectType::Cargo, &["test-package_v1.0".into()], true);
         assert!(result.is_ok());
     }
 
@@ -243,20 +285,20 @@ mod tests {
     }
 
     #[test]
-    fn test_update_package_uv() {
-        let result = update_package(ProjectType::Uv, "test-package", true);
+    fn test_update_packages_uv() {
+        let result = update_packages(ProjectType::Uv, &["test-package".into()], true);
         assert!(result.is_ok());
     }
 
     #[test]
-    fn test_update_package_poetry() {
-        let result = update_package(ProjectType::Poetry, "test-package", true);
+    fn test_update_packages_poetry() {
+        let result = update_packages(ProjectType::Poetry, &["test-package".into()], true);
         assert!(result.is_ok());
     }
 
     #[test]
-    fn test_update_package_cargo() {
-        let result = update_package(ProjectType::Cargo, "test-package", true);
+    fn test_update_packages_cargo() {
+        let result = update_packages(ProjectType::Cargo, &["test-package".into()], true);
         assert!(result.is_ok());
     }
 }

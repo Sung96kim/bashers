@@ -12,8 +12,8 @@ pub struct BashersApp {
 pub enum Commands {
     /// Update Python dependencies
     Update {
-        /// Package name to update (with fuzzy matching)
-        package: Option<String>,
+        /// Package names or patterns (fuzzy matching). Omit to update all.
+        packages: Vec<String>,
         /// Print commands without executing
         #[arg(long)]
         dry_run: bool,

@@ -26,10 +26,10 @@ pub fn run(args: Vec<String>) -> Result<()> {
 
     match app.command {
         Some(cli::Commands::Update {
-            package,
+            packages,
             dry_run,
             auto_select,
-        }) => commands::update::run(package.as_deref(), dry_run, auto_select)?,
+        }) => commands::update::run(&packages, dry_run, auto_select)?,
         Some(cli::Commands::Setup {
             frozen,
             rm,
