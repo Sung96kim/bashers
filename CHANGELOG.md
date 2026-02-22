@@ -1,5 +1,11 @@
 # CHANGELOG
 
+## [0.8.7](https://github.com/Sung96kim/bashers/compare/v0.8.6...v0.8.7) - 2026-02-22
+
+### Fixed
+
+- self update
+
 ## [0.8.6](https://github.com/Sung96kim/bashers/compare/v0.8.5...v0.8.6) - 2026-02-21
 
 ### Added
