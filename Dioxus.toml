@@ -1,0 +1,10 @@
+[application]
+name = "bashers"
+default_platform = "fullstack"
+
+[web.app]
+title = "bashers"
+
+[web.watcher]
+reload_html = true
+watch_path = ["src"]

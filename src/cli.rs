@@ -6,6 +6,9 @@ use clap::{Parser, Subcommand};
 pub struct BashersApp {
     #[command(subcommand)]
     pub command: Option<Commands>,
+    /// Launch the desktop GUI
+    #[arg(long)]
+    pub gui: bool,
 }
 
 #[derive(Subcommand)]

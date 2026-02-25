@@ -37,7 +37,14 @@ ratatui = "0.30.0"
 crossterm = "0.29"
 ansi-to-tui = "8.0.1"
 diff = "0.1"
+serde = { version = "1", features = ["derive"], optional = true }
+dioxus = { version = "0.7", features = ["fullstack"], optional = true }
+tokio = { version = "1", features = ["full"], optional = true }
+dioxus-primitives = { git = "https://github.com/DioxusLabs/components", version = "0.0.1", default-features = false, optional = true }
 
 [features]
 default = []
 pyo3 = ["dep:pyo3"]
+gui = ["dep:dioxus", "dep:dioxus-primitives", "dep:serde", "dep:tokio", "server"]
+server = ["dioxus/server"]
+web = ["dep:dioxus", "dep:dioxus-primitives", "dep:serde", "dioxus/web"]

@@ -29,6 +29,7 @@ bashers docker build [-f <path>]  # Dockerfile (default ./Dockerfile; -t tag, --
 bashers watch -n 2 -- <cmd>       # run repeatedly, highlight changes (-n interval, --no-diff)
 bashers self update               # upgrade bashers
 bashers version
+bashers --gui                     # open desktop GUI (requires --features gui)
 ```
 
 `bs` works as an alias for `bashers` (e.g. `bs sync`, `bs build`). Run `bashers <cmd> --help` for options.
@@ -46,6 +47,7 @@ bashers version
 | **watch**  | Run on an interval, diff highlight (green = changed). |
 | **self**   | `update`. |
 | **version** | Print version. |
+| **--gui** | Launch desktop GUI (requires `cargo install bashers --features gui`). |
 
 ## Features
 

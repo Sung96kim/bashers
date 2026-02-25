@@ -53,4 +53,66 @@ mod tests {
         );
         assert!(result.is_err());
     }
+
+    #[test]
+    fn test_run_nonexistent_with_tag_errors() {
+        let result = run(
+            Some(Path::new("/nonexistent/dockerfile")),
+            Some("myimage:latest"),
+            false,
+            None,
+        );
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_run_nonexistent_with_no_cache_errors() {
+        let result = run(
+            Some(Path::new("/nonexistent/dockerfile")),
+            None,
+            true,
+            None,
+        );
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_run_nonexistent_with_context_errors() {
+        let result = run(
+            Some(Path::new("/nonexistent/dockerfile")),
+            None,
+            false,
+            Some(Path::new("/tmp")),
+        );
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_run_nonexistent_with_all_options_errors() {
+        let result = run(
+            Some(Path::new("/nonexistent/dockerfile")),
+            Some("myimage:v1"),
+            true,
+            Some(Path::new("/tmp")),
+        );
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_error_message_includes_path() {
+        let result = run(
+            Some(Path::new("/nonexistent/my-docker-file")),
+            None,
+            false,
+            None,
+        );
+        let err = result.unwrap_err().to_string();
+        assert!(err.contains("my-docker-file"));
+    }
+
+    #[test]
+    fn test_run_no_dockerfile_specified_defaults() {
+        let result = run(None, None, false, None);
+        assert!(result.is_err());
+    }
 }

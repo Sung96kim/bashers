@@ -209,4 +209,54 @@ mod tests {
         assert_eq!(VersionChange::Upgraded, VersionChange::Upgraded);
         assert_ne!(VersionChange::Upgraded, VersionChange::Downgraded);
     }
+
+    #[test]
+    fn test_print_updated_version_no_panic() {
+        print_updated_version("clap", "4.5.0");
+    }
+
+    #[test]
+    fn test_print_updated_version_with_v_prefix() {
+        print_updated_version("clap", "v4.5.0");
+    }
+
+    #[test]
+    fn test_print_bumped_version_no_panic() {
+        print_bumped_version("clap", "4.4.0", "4.5.0");
+    }
+
+    #[test]
+    fn test_colors_flush() {
+        let mut colors = Colors::new();
+        assert!(colors.flush().is_ok());
+    }
+
+    #[test]
+    fn test_colors_default() {
+        let colors = Colors::default();
+        let _ = colors;
+    }
+
+    #[test]
+    fn test_version_change_all_variants() {
+        let variants = [
+            VersionChange::Upgraded,
+            VersionChange::Unchanged,
+            VersionChange::Downgraded,
+        ];
+        for v in &variants {
+            let cloned = *v;
+            assert_eq!(*v, cloned);
+        }
+    }
+
+    #[test]
+    fn test_ansi_constants_are_valid_escapes() {
+        assert!(ANSI_CYAN_BOLD.starts_with("\x1b["));
+        assert!(ANSI_GREEN.starts_with("\x1b["));
+        assert!(ANSI_RED.starts_with("\x1b["));
+        assert!(ANSI_YELLOW.starts_with("\x1b["));
+        assert!(ANSI_DIM.starts_with("\x1b["));
+        assert_eq!(ANSI_RESET, "\x1b[0m");
+    }
 }
