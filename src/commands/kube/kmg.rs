@@ -5,6 +5,8 @@ use regex::Regex;
 use std::collections::BTreeMap;
 use std::process::{Command, Stdio};
 
+use super::pod_pattern_regex;
+
 fn format_pod_prefix(pod_name: &str, use_color: bool) -> String {
     if use_color {
         format!(
@@ -138,13 +140,6 @@ pub fn run(patterns: &[String]) -> Result<()> {
     Ok(())
 }
 
-fn pod_pattern_regex(pattern: &str) -> Regex {
-    Regex::new(pattern).unwrap_or_else(|_| {
-        let escaped = regex::escape(pattern);
-        Regex::new(&format!("(?i){}", escaped)).expect("escaped pattern must be valid")
-    })
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -167,5 +162,26 @@ mod tests {
     fn test_pod_pattern_regex_literal_bracket_escaped_on_fallback() {
         let re = pod_pattern_regex("[");
         assert!(re.is_match("["));
+    }
+
+    #[test]
+    fn test_format_pod_prefix_with_color() {
+        let result = format_pod_prefix("api-server-abc123", true);
+        assert!(result.contains("api-server-abc123"));
+        assert!(result.contains(colors::ANSI_CYAN_BOLD));
+        assert!(result.contains(colors::ANSI_RESET));
+    }
+
+    #[test]
+    fn test_format_pod_prefix_without_color() {
+        let result = format_pod_prefix("api-server-abc123", false);
+        assert_eq!(result, "[api-server-abc123]: ");
+        assert!(!result.contains('\x1b'));
+    }
+
+    #[test]
+    fn test_format_pod_prefix_empty_name() {
+        let result = format_pod_prefix("", false);
+        assert_eq!(result, "[]: ");
     }
 }

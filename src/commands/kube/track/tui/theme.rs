@@ -46,3 +46,55 @@ impl Theme {
         self.title_colors[index % self.title_colors.len()]
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_default_theme_has_colors() {
+        let theme = Theme::default();
+        assert!(!theme.pane_colors.is_empty());
+        assert!(!theme.title_colors.is_empty());
+    }
+
+    #[test]
+    fn test_pane_color_wraps_around() {
+        let theme = Theme::default();
+        let len = theme.pane_colors.len();
+        assert_eq!(theme.pane_color(0), theme.pane_color(len));
+        assert_eq!(theme.pane_color(1), theme.pane_color(len + 1));
+    }
+
+    #[test]
+    fn test_title_color_wraps_around() {
+        let theme = Theme::default();
+        let len = theme.title_colors.len();
+        assert_eq!(theme.title_color(0), theme.title_color(len));
+        assert_eq!(theme.title_color(1), theme.title_color(len + 1));
+    }
+
+    #[test]
+    fn test_pane_color_sequential_are_distinct() {
+        let theme = Theme::default();
+        for i in 0..theme.pane_colors.len() - 1 {
+            assert_ne!(theme.pane_color(i), theme.pane_color(i + 1));
+        }
+    }
+
+    #[test]
+    fn test_title_color_sequential_are_distinct() {
+        let theme = Theme::default();
+        for i in 0..theme.title_colors.len() - 1 {
+            assert_ne!(theme.title_color(i), theme.title_color(i + 1));
+        }
+    }
+
+    #[test]
+    fn test_theme_clone() {
+        let theme = Theme::default();
+        let cloned = theme.clone();
+        assert_eq!(cloned.pane_colors.len(), theme.pane_colors.len());
+        assert_eq!(cloned.title_colors.len(), theme.title_colors.len());
+    }
+}

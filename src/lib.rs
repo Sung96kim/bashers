@@ -1,5 +1,9 @@
 pub mod cli;
 pub mod commands;
+#[cfg(feature = "gui")]
+mod components;
+#[cfg(any(feature = "gui", test))]
+pub mod gui;
 pub(crate) mod tui;
 pub mod utils;
 
@@ -23,6 +27,20 @@ pub fn run(args: Vec<String>) -> Result<()> {
         }
     }
     let app = BashersApp::parse_from(args);
+
+    if app.gui {
+        #[cfg(feature = "gui")]
+        {
+            gui::launch();
+            return Ok(());
+        }
+        #[cfg(not(feature = "gui"))]
+        {
+            anyhow::bail!(
+                "GUI not available. Rebuild with: cargo install bashers --features gui"
+            );
+        }
+    }
 
     match app.command {
         Some(cli::Commands::Update {

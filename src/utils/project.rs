@@ -3,6 +3,7 @@ use std::path::Path;
 use which::which;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(feature = "gui", derive(serde::Serialize, serde::Deserialize))]
 pub enum ProjectType {
     Uv,
     Poetry,
@@ -38,28 +39,19 @@ pub fn detect() -> Result<Option<ProjectType>> {
     Ok(None)
 }
 
+fn has_pyproject_section(section: &str) -> bool {
+    Path::new("pyproject.toml").exists()
+        && std::fs::read_to_string("pyproject.toml")
+            .map(|content| content.contains(section))
+            .unwrap_or(false)
+}
+
 fn has_project_section() -> bool {
-    if Path::new("pyproject.toml").exists() {
-        {
-            std::fs::read_to_string("pyproject.toml")
-                .map(|content| content.contains("[project]"))
-                .unwrap_or(false)
-        }
-    } else {
-        false
-    }
+    has_pyproject_section("[project]")
 }
 
 fn has_poetry_section() -> bool {
-    if Path::new("pyproject.toml").exists() {
-        {
-            std::fs::read_to_string("pyproject.toml")
-                .map(|content| content.contains("[tool.poetry]"))
-                .unwrap_or(false)
-        }
-    } else {
-        false
-    }
+    has_pyproject_section("[tool.poetry]")
 }
 
 impl ProjectType {

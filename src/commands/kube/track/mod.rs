@@ -10,8 +10,10 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use crate::utils::spinner;
+pub use super::pod_pattern_regex;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
+#[cfg_attr(feature = "gui", derive(serde::Serialize, serde::Deserialize))]
 pub struct PodInfo {
     pub namespace: String,
     pub name: String,
@@ -202,13 +204,6 @@ pub fn should_show_line(line: &str, in_traceback: &mut bool) -> bool {
         || upper.contains("ERROR")
         || upper.contains("CRITICAL")
         || upper.contains("FATAL")
-}
-
-pub fn pod_pattern_regex(pattern: &str) -> Regex {
-    Regex::new(pattern).unwrap_or_else(|_| {
-        let escaped = regex::escape(pattern);
-        Regex::new(&format!("(?i){}", escaped)).expect("escaped pattern must be valid")
-    })
 }
 
 fn print_no_match_warning(pattern: &str, use_color: bool) {

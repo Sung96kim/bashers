@@ -1,3 +1,12 @@
 #!/bin/sh
 cd "$(dirname "$0")/.."
-exec cargo run --bin bashers -- "$@"
+
+FEATURES=""
+for arg in "$@"; do
+    if [ "$arg" = "--gui" ]; then
+        FEATURES="--features gui"
+        break
+    fi
+done
+
+exec cargo run --bin bashers $FEATURES -- "$@"

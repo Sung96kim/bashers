@@ -1,5 +1,9 @@
 use crate::utils::project::ProjectType;
 use anyhow::{Context, Result};
+use fuzzy_matcher::skim::SkimMatcherV2;
+use fuzzy_matcher::FuzzyMatcher;
+use inquire::list_option::ListOption;
+use inquire::{MultiSelect, Select};
 use std::process::Command;
 
 pub fn list(project_type: ProjectType) -> Result<Vec<String>> {
@@ -164,9 +168,6 @@ fn get_version_cargo(package: &str) -> Result<Option<String>> {
 }
 
 pub fn fuzzy_match(packages: &[String], pattern: &str) -> Result<Vec<String>> {
-    use fuzzy_matcher::skim::SkimMatcherV2;
-    use fuzzy_matcher::FuzzyMatcher;
-
     let matcher = SkimMatcherV2::default();
     let mut matches: Vec<(i64, String)> = packages
         .iter()
@@ -233,8 +234,6 @@ pub fn select_one_with_auto_select(matches: Vec<String>, auto_select: bool) -> R
 }
 
 fn select_with_inquire(matches: &[String]) -> Result<String> {
-    use inquire::Select;
-
     let selected = Select::new("Select a package:", matches.to_vec())
         .with_page_size(10)
         .prompt()
@@ -295,9 +294,6 @@ pub fn select_many_with_auto_select(
 }
 
 fn select_many_with_inquire(matches: &[String]) -> Result<Vec<String>> {
-    use inquire::list_option::ListOption;
-    use inquire::MultiSelect;
-
     let formatter = |opts: &[ListOption<&String>]| {
         let names: Vec<&str> = opts.iter().map(|o| o.value.as_str()).collect();
         format!("Selected: {}", names.join(", "))
