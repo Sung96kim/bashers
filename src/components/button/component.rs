@@ -4,6 +4,7 @@ use dioxus_primitives::merge_attributes;
 
 #[derive(Copy, Clone, PartialEq, Default)]
 #[non_exhaustive]
+#[allow(dead_code)]
 pub enum ButtonVariant {
     #[default]
     Primary,
@@ -14,6 +15,7 @@ pub enum ButtonVariant {
 }
 
 impl ButtonVariant {
+    #[allow(dead_code)]
     pub fn class(&self) -> &'static str {
         match self {
             ButtonVariant::Primary => "primary",

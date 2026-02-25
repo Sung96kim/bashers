@@ -435,12 +435,12 @@ pub fn KubeTrackPage() -> Element {
                                         .unwrap_or_default();
 
                                     rsx! {
-                                        if idx > 0 {
-                                            div { class: "splitter-h" }
-                                        }
                                         div {
                                             key: "{pinned_key}",
                                             style: "flex: 1; display: flex; flex-direction: column; min-width: 0; overflow: hidden;",
+                                            if idx > 0 {
+                                                div { class: "splitter-h" }
+                                            }
                                             div { class: "log-header",
                                                 span { class: "mono", style: "font-size: 12px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;",
                                                     "{pod_name}"
